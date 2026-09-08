@@ -1,0 +1,138 @@
+{
+  "id": "golden",
+  "brand": "Golden Pot",
+  "kicker": "GOLDEN POT \u00d7 FIREBIRD \u00b7 AR SITE",
+  "target": "targets/golden.mind",
+  "palette": {
+    "ground": "#eee7d6",
+    "ink": "#163a2e",
+    "accent": "#d69e2c",
+    "ball": "#ba4a22",
+    "pop": "#ffd23f"
+  },
+  "copy": {
+    "title": "Slow-cooked",
+    "titleAccent": "Since 1974",
+    "intro": "Point your phone at the mural. Keep the veg in the air for as long as you can.",
+    "ready": "TAP TO TOSS",
+    "readyHint": "Into the pot",
+    "flight": "IN THE AIR\u2026",
+    "flightHint": "Watch the pot",
+    "returning": "COMING BACK\u2026",
+    "returningHint": "Get ready",
+    "window": "TAP NOW!",
+    "windowHint": "This is the window",
+    "hit": "NICE!",
+    "hitHint": "Again \u2014 faster now",
+    "early": "TOO EARLY",
+    "earlyHint": "Wait until it is almost back",
+    "missed": "DROPPED IT",
+    "missedHint": "Pot reset \u2014 tap to try again",
+    "tapToPlay": "Tap To Play",
+    "scanning": "Point at the mural",
+    "miss": "DROPPED IT!",
+    "go": "GO!",
+    "overTitle": "Keep It Up!",
+    "tryAgain": "Close. Tap it the moment it starts to fall.",
+    "shareText": "I kept it up",
+    "cheers": {
+      "2": "KEEP IT UP!",
+      "5": "STILL COOKING",
+      "8": "BEAT THE HIGH SCORE!",
+      "12": "CHEF'S KISS",
+      "20": "UNREAL"
+    }
+  },
+  "play": {
+    "gravity": 0.66,
+    "hitImpulse": 0.64,
+    "maxSide": 0.3,
+    "sideGain": 0.34,
+    "maxDepth": 0.22,
+    "depthGain": 0.26,
+    "boundX": 0.62,
+    "minZ": 0.02,
+    "maxZ": 0.62,
+    "floorY": -0.62,
+    "startY": 0.34,
+    "startZ": 0.22,
+    "tapForgiveness": 1.6,
+    "goal": 8
+  },
+  "props": [
+    {
+      "type": "sphere",
+      "pos": [
+        -0.36,
+        -0.16,
+        0
+      ],
+      "size": [
+        0.038
+      ],
+      "color": "#ba4a22"
+    },
+    {
+      "type": "cylinder",
+      "pos": [
+        -0.26,
+        -0.19,
+        0
+      ],
+      "size": [
+        0.024,
+        0.075
+      ],
+      "color": "#808a3e"
+    },
+    {
+      "type": "disc",
+      "pos": [
+        -0.16,
+        -0.15,
+        0
+      ],
+      "size": [
+        0.03,
+        0.018
+      ],
+      "color": "#d69e2c"
+    },
+    {
+      "type": "sphere",
+      "pos": [
+        -0.06,
+        -0.19,
+        0
+      ],
+      "size": [
+        0.03
+      ],
+      "color": "#8c2e3c"
+    },
+    {
+      "type": "box",
+      "pos": [
+        0.4,
+        -0.05,
+        0
+      ],
+      "size": [
+        0.055,
+        0.09,
+        0.035
+      ],
+      "color": "#f7f3e8"
+    }
+  ],
+  "reward": {
+    "headline": "That is dinner sorted.",
+    "body": "Eight in a row. Show this screen in store for a discount on the 400 g Golden Pot Veg.",
+    "cta": "Get the voucher",
+    "url": "https://example.com/golden-pot"
+  },
+  "ball": {
+    "radius": 0.12,
+    "texture": "assets/ball-golden.png"
+  }
+}

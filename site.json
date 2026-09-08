@@ -1,0 +1,6 @@
+{
+  "_comment": "Site-wide access settings. Change 'passcode' to whatever you want to tell people, or set it to \"\" to remove the gate entirely.",
+  "passcode": "firebird",
+  "lockTitle": "Work in progress",
+  "lockBody": "This is an internal prototype, not a public site. Enter the passcode Eddy sent you."
+}

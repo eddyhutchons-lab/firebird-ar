@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Firebird AR — interactive mural</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+
+<!-- Vendored so a live site has no CDN dependency. CDN equivalents if you prefer:
+     https://aframe.io/releases/1.5.0/aframe.min.js
+     https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js -->
+<script src="./vendor/aframe.min.js"></script>
+<script src="./vendor/mindar-image-aframe.prod.js"></script>
+
+<style>
+  :root{
+    --ground:#f3eee4; --ink:#121e36; --accent:#f0ac2c; --ball:#d63c2c;
+    --pop:#5ee83f; --panel:rgba(18,30,54,.9);
+  }
+  *{box-sizing:border-box}
+
+  /* MindAR injects its <video> into <body> at z-index:-2 — the ROOT stacking
+     context — so an opaque background on <body> paints straight over the
+     camera. Letterbox colour lives on <html>; <body> stays transparent. */
+  html{background:#000;height:100%;margin:0}
+  body{margin:0;height:100%;overflow:hidden;background:transparent;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  body > video{z-index:0 !important}
+  a-scene{position:fixed;inset:0;z-index:1}
+
+  /* ---------------------------------------------------------------- HUD */
+  #ui{position:fixed;inset:0;z-index:10;pointer-events:none;
+    padding:calc(env(safe-area-inset-top,0px) + 16px) 18px calc(env(safe-area-inset-bottom,0px) + 20px)}
+
+  #brand{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);left:16px;
+    font-size:15px;font-weight:800;letter-spacing:.16em;color:#fff;
+    writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);
+    text-shadow:0 2px 10px rgba(0,0,0,.6);opacity:.92}
+
+  #score{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:20px;
+    font-size:64px;font-weight:800;color:#fff;line-height:1;
+    text-shadow:0 3px 18px rgba(0,0,0,.55);font-variant-numeric:tabular-nums;
+    opacity:0;transition:opacity .25s}
+  #score.on{opacity:1}
+  #best{position:absolute;top:calc(env(safe-area-inset-top,0px) + 82px);right:22px;
+    font-size:12px;letter-spacing:.14em;color:#fff;opacity:0;text-shadow:0 2px 8px rgba(0,0,0,.6);
+    transition:opacity .25s}
+  #best.on{opacity:.75}
+
+  /* comic pop — the "HIT!" burst */
+  #pop{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.4);
+    font-size:76px;font-weight:900;font-style:italic;letter-spacing:-.02em;
+    color:var(--pop);-webkit-text-stroke:6px #10240a;paint-order:stroke fill;
+    text-shadow:0 8px 0 rgba(0,0,0,.35);opacity:0;white-space:nowrap}
+  #pop.go{animation:popIn .55s cubic-bezier(.2,1.5,.4,1) forwards}
+  @keyframes popIn{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-8deg)}
+    35%{opacity:1;transform:translate(-50%,-56%) scale(1.12) rotate(3deg)}
+    70%{opacity:1;transform:translate(-50%,-58%) scale(1) rotate(-1deg)}
+    100%{opacity:0;transform:translate(-50%,-72%) scale(1) rotate(0)}
+  }
+
+  /* big encouragement line, e.g. KEEP IT UP! */
+  #cheer{position:absolute;left:50%;top:22%;transform:translate(-50%,0);
+    font-size:34px;font-weight:900;font-style:italic;color:var(--pop);
+    -webkit-text-stroke:4px #10240a;paint-order:stroke fill;white-space:nowrap;
+    opacity:0;transition:opacity .3s}
+  #cheer.on{opacity:1}
+
+  #countdown{position:absolute;inset:0;display:grid;place-items:center;
+    font-size:190px;font-weight:800;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.5);
+    opacity:0;pointer-events:none}
+  #countdown.go{animation:cd .9s ease-out forwards}
+  @keyframes cd{0%{opacity:0;transform:scale(1.6)}25%{opacity:1;transform:scale(1)}
+                80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.9)}}
+
+  #tapplay{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);
+    font-size:30px;font-weight:900;font-style:italic;color:var(--pop);
+    -webkit-text-stroke:4px #10240a;paint-order:stroke fill;
+    opacity:0;transition:opacity .3s;white-space:nowrap}
+  #tapplay.on{opacity:1;animation:bob 1.6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-8px)}}
+
+  /* scanning reticle */
+  #scan{position:fixed;inset:0;z-index:9;display:none;place-items:center;pointer-events:none}
+  #scan.on{display:grid}
+  #scan .box{width:min(76vw,330px);aspect-ratio:7/4;position:relative;animation:breathe 2.4s ease-in-out infinite}
+  #scan .box i{position:absolute;width:32px;height:32px;border:3px solid #fff;opacity:.9}
+  #scan .box i:nth-child(1){top:0;left:0;border-right:0;border-bottom:0}
+  #scan .box i:nth-child(2){top:0;right:0;border-left:0;border-bottom:0}
+  #scan .box i:nth-child(3){bottom:0;left:0;border-right:0;border-top:0}
+  #scan .box i:nth-child(4){bottom:0;right:0;border-left:0;border-top:0}
+  #scanTxt{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);
+    color:#fff;font-size:15px;text-shadow:0 2px 12px rgba(0,0,0,.7);text-align:center;white-space:nowrap}
+  @keyframes breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.04);opacity:1}}
+
+  /* ------------------------------------------------------------- cards */
+  .card{position:fixed;inset:0;z-index:30;background:var(--ground);color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:32px;gap:18px}
+  .card.hide{display:none}
+  .card h1{font-size:34px;line-height:1.05;margin:0;letter-spacing:-.02em}
+  .card h1 em{font-style:normal;color:var(--ball)}
+  .card p{margin:0;max-width:34ch;font-size:15px;line-height:1.5;color:#55617a}
+  .card button,.card a.btn{pointer-events:auto;border:0;border-radius:999px;background:var(--ink);
+    color:#fff;font-size:17px;font-weight:700;padding:16px 40px;letter-spacing:.02em;
+    text-decoration:none;display:inline-block}
+  .card button:active{transform:scale(.97)}
+  .card small{font-size:11px;letter-spacing:.12em;color:#8a93a8}
+  #warn{background:#fdf0ee;border:1px solid #f0c8c0;color:#a3271a;border-radius:12px;
+    padding:12px 16px;font-size:13px;line-height:1.45;max-width:34ch;display:none}
+  #warn.on{display:block}
+  #code{pointer-events:auto;border:2px solid #c9cfda;border-radius:14px;padding:14px 20px;
+    font-size:18px;text-align:center;width:min(260px,72vw);background:#fff;color:var(--ink)}
+  #code:focus{outline:none;border-color:var(--ink)}
+
+  /* end card, modelled on the reference's score screen */
+  #over{background:var(--ink);color:#fff}
+  #over h1{font-size:38px;font-style:italic;color:var(--pop);
+    -webkit-text-stroke:3px #10240a;paint-order:stroke fill}
+  #over .num{font-size:104px;font-weight:800;line-height:.9;color:var(--accent);
+    font-variant-numeric:tabular-nums}
+  #over .lbl{font-size:13px;letter-spacing:.3em;opacity:.7}
+  #over p{color:#c3cbdb}
+  #over .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  #over .ghost{background:transparent;border:2px solid rgba(255,255,255,.45)}
+  #newbest{font-size:13px;letter-spacing:.2em;color:var(--accent);font-weight:700;visibility:hidden}
+</style>
+</head>
+<body>
+
+<div id="lock" class="card hide">
+  <small>PRIVATE PROTOTYPE</small>
+  <h1 id="lockTitle">Work in progress</h1>
+  <p id="lockBody"></p>
+  <input id="code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"
+         placeholder="Passcode" aria-label="Passcode">
+  <button id="unlock">Continue</button>
+  <small id="codeErr" style="color:#a3271a;visibility:hidden">That is not the passcode</small>
+</div>
+
+<div id="gate" class="card hide">
+  <small id="kicker">FIREBIRD AFRICA · AR SITE</small>
+  <h1 id="title">Loading…</h1>
+  <p id="intro"></p>
+  <div id="warn"></div>
+  <button id="start">Start camera</button>
+  <small id="dbg" style="opacity:.55"></small>
+</div>
+
+<div id="over" class="card hide">
+  <h1 id="overTitle">Keep It Up!</h1>
+  <div class="lbl">SCORE</div>
+  <div class="num" id="finalScore">0</div>
+  <div id="newbest">NEW PERSONAL BEST</div>
+  <p id="overBody"></p>
+  <div class="row">
+    <button id="again">Play again</button>
+    <button id="share" class="ghost">Share your score</button>
+  </div>
+  <a id="overCta" class="btn" href="#" target="_blank" rel="noopener" style="background:var(--accent);color:var(--ink)"></a>
+</div>
+
+<div id="scan"><div class="box"><i></i><i></i><i></i><i></i></div><div id="scanTxt">Point at the mural</div></div>
+
+<div id="ui">
+  <div id="brand">FIREBIRD</div>
+  <div id="score">0</div>
+  <div id="best"></div>
+  <div id="pop"></div>
+  <div id="cheer"></div>
+  <div id="tapplay">Tap To Play</div>
+  <div id="countdown"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const track = window.FIREBIRD_TRACK || function (e, d) { console.log('[track]', e, d || {}); };
+
+  const params = new URLSearchParams(location.search);
+  const campaignId = (params.get('c') || 'fridge').replace(/[^a-z0-9_-]/gi, '');
+
+  const ua = navigator.userAgent || '';
+  const inApp = /FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|MicroMessenger/i.test(ua);
+  const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+  const warn = $('warn');
+  if (!secure) {
+    warn.classList.add('on');
+    warn.textContent = 'This page must be served over HTTPS for the camera to work. Open the hosted https:// link, not a local file.';
+  } else if (inApp) {
+    warn.classList.add('on');
+    warn.textContent = 'You opened this inside another app’s browser, which usually blocks the camera. Tap the ⋯ menu and choose “Open in Safari” or “Open in Chrome”.';
+  }
+
+  let C, scene, targetEl, ballEl, shadowEl, glowEl;
+
+  /* ------------------------------------------------------------ access gate
+     A doorman, not a vault: it makes a forwarded link useless, but the code
+     lives in the page. Real locking belongs on the host. */
+  function gateAccess() {
+    return fetch('site.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
+      .then((s) => new Promise((resolve) => {
+        const code = (s.passcode || '').trim();
+        let already = false;
+        try { already = sessionStorage.getItem('fb_unlocked') === code && code !== ''; } catch (e) {}
+        if (!code || already) { $('gate').classList.remove('hide'); return resolve(); }
+        $('lockTitle').textContent = s.lockTitle || 'Work in progress';
+        $('lockBody').textContent = s.lockBody || 'This is an internal prototype, not a public site.';
+        $('lock').classList.remove('hide');
+        const attempt = () => {
+          if ($('code').value.trim().toLowerCase() === code.toLowerCase()) {
+            try { sessionStorage.setItem('fb_unlocked', code); } catch (e) {}
+            $('lock').classList.add('hide');
+            $('gate').classList.remove('hide');
+            resolve();
+          } else { $('codeErr').style.visibility = 'visible'; $('code').value = ''; }
+        };
+        $('unlock').addEventListener('click', attempt);
+        $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') attempt(); });
+      }));
+  }
+
+  gateAccess().then(() => fetch('campaigns/' + campaignId + '.json')
+    .then((r) => { if (!r.ok) throw new Error('campaign ' + campaignId + ' not found'); return r.json(); })
+    .then(boot)
+    .catch((e) => {
+      $('title').textContent = 'Campaign not found';
+      $('intro').textContent = e.message;
+      $('start').style.display = 'none';
+    }));
+
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function boot(cfg) {
+    C = cfg;
+    track('session_start', { campaign: C.id });
+    const p = C.palette || {}, root = document.documentElement.style;
+    ['ground', 'ink', 'accent', 'ball', 'pop'].forEach((k) => { if (p[k]) root.setProperty('--' + k, p[k]); });
+    $('kicker').textContent = C.kicker || '';
+    $('brand').textContent = C.brand || '';
+    $('title').innerHTML = esc(C.copy.title) + '<br><em>' + esc(C.copy.titleAccent || '') + '</em>';
+    $('intro').textContent = C.copy.intro || '';
+    $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Play';
+    $('overTitle').textContent = C.copy.overTitle || 'Keep It Up!';
+    $('scanTxt').textContent = C.copy.scanning || 'Point at the mural';
+    document.title = C.brand + ' — AR';
+    try { G.best = Number(localStorage.getItem('fb_best_' + campaignId) || 0) || 0; } catch (e) {}
+    buildScene();
+  }
+
+  /* --------------------------------------------------------------- scene */
+  function buildScene() {
+    const props = (C.props || []).map((pr) => {
+      const pos = pr.pos.join(' ');
+      const mat = 'material="color:' + pr.color + '; roughness:.55"';
+      if (pr.type === 'sphere') return `<a-sphere class="prop" position="${pos}" radius="${pr.size[0]}" ${mat}></a-sphere>`;
+      if (pr.type === 'cylinder') return `<a-cylinder class="prop" position="${pos}" radius="${pr.size[0]}" height="${pr.size[1]}" ${mat}></a-cylinder>`;
+      if (pr.type === 'disc') return `<a-cylinder class="prop" position="${pos}" radius="${pr.size[0]}" height="${pr.size[1]}" rotation="90 0 0" ${mat}></a-cylinder>`;
+      return `<a-box class="prop" position="${pos}" width="${pr.size[0]}" height="${pr.size[1]}" depth="${pr.size[2]}" ${mat}></a-box>`;
+    }).join('');
+
+    const ballMat = C.ball && C.ball.texture
+      ? `material="src: ${C.ball.texture}; roughness:.45; metalness:0"`
+      : `material="color:${C.palette.ball || '#d63c2c'}; roughness:.4"`;
+
+    document.body.insertAdjacentHTML('beforeend',
+      `<a-scene mindar-image="imageTargetSrc: ${C.target}; autoStart: false; uiScanning: no; uiLoading: no; uiError: no;
+         filterMinCF: 0.0001; filterBeta: 0.005; missTolerance: 6; warmupTolerance: 3"
+        color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true"
+        vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+        <a-assets>${C.ball && C.ball.texture ? `<img id="balltex" src="${C.ball.texture}" crossorigin="anonymous">` : ''}</a-assets>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-entity id="target" mindar-image-target="targetIndex: 0">
+          <a-entity light="type: ambient; intensity: 0.9"></a-entity>
+          <a-entity light="type: directional; intensity: 0.55" position="0.4 0.7 1"></a-entity>
+          <a-plane id="glow" position="0 0 -0.002" width="1.02" height="0.60"
+            material="color: ${C.palette.accent || '#f0ac2c'}; opacity: 0; transparent: true; side: double"></a-plane>
+          <a-entity id="props">${props}</a-entity>
+          <a-ring id="shadow" position="0 -0.5 0.002" radius-inner="0" radius-outer="0.07"
+            material="color:#000; opacity:.2; transparent:true; side:double"></a-ring>
+          <a-sphere id="ball" radius="${(C.ball && C.ball.radius) || 0.13}"
+            position="0 0.3 0.2" segments-width="32" segments-height="24" ${ballMat}></a-sphere>
+        </a-entity>
+      </a-scene>`);
+
+    scene = document.querySelector('a-scene');
+    targetEl = $('target'); ballEl = $('ball'); shadowEl = $('shadow'); glowEl = $('glow');
+    targetEl.addEventListener('targetFound', onFound);
+    targetEl.addEventListener('targetLost', onLost);
+    ballEl.object3D.visible = false;
+  }
+
+  /* ---------------------------------------------------------------- game
+     Keepy-uppy, as in the reference: the ball falls under gravity and you tap
+     it to send it back up. Miss it and the run ends. Everything happens in the
+     mural's own coordinate space, so the ball really is in front of the wall. */
+  const G = { phase: 'idle', score: 0, best: 0, last: 0, tracked: false,
+              pos: {x: 0, y: 0.3, z: 0.2}, vel: {x: 0, y: 0, z: 0}, spin: {x: 0, y: 0} };
+
+  const V3 = () => new AFRAME.THREE.Vector3();
+
+  function resetBall() {
+    const ph = C.play;
+    G.pos = { x: 0, y: ph.startY, z: ph.startZ };
+    G.vel = { x: 0, y: 0, z: 0 };
+    G.spin = { x: 0, y: 0 };
+    applyBall();
+  }
+
+  function applyBall() {
+    if (!ballEl) return;
+    ballEl.object3D.position.set(G.pos.x, G.pos.y, G.pos.z);
+    ballEl.object3D.rotation.x = G.spin.x;
+    ballEl.object3D.rotation.y = G.spin.y;
+    // Contact shadow on the wall. Only drawn while the ball is actually over
+    // the artwork — off the edge there is no wall to cast onto, and a grey
+    // disc floating in the sky is the fastest way to break the illusion.
+    const overWall = Math.abs(G.pos.x) < 0.48 && Math.abs(G.pos.y) < 0.27;
+    shadowEl.object3D.visible = overWall && ballEl.object3D.visible;
+    if (overWall) {
+      shadowEl.object3D.position.set(G.pos.x, G.pos.y, 0.003);
+      const near = Math.min(1, Math.max(0, G.pos.z / 0.6));
+      const s = 0.8 + near * 0.5;
+      shadowEl.object3D.scale.set(s, s, s);
+      shadowEl.setAttribute('material', 'opacity', 0.16 * (1 - near * 0.8));
+    }
+  }
+
+  function pop(text) {
+    const el = $('pop');
+    el.textContent = text;
+    el.classList.remove('go');
+    void el.offsetWidth;
+    el.classList.add('go');
+  }
+
+  function cheer(text) {
+    const el = $('cheer');
+    el.textContent = text;
+    el.classList.add('on');
+    clearTimeout(cheer._t);
+    cheer._t = setTimeout(() => el.classList.remove('on'), 1800);
+  }
+
+  function setScore(n) {
+    G.score = n;
+    $('score').textContent = n;
+    const cues = C.copy.cheers || {};
+    if (cues[n]) cheer(cues[n]);
+  }
+
+  /* Hit testing: project the ball to screen space and compare with the tap.
+     Cheaper and far more forgiving than a raycast, which matters when someone
+     is holding a phone at arm's length in the sun. */
+  function ballScreen() {
+    const cam = scene.camera;
+    const v = V3();
+    ballEl.object3D.getWorldPosition(v);
+    const world = v.clone();
+    v.project(cam);
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    // radius in pixels: project a point one radius to the side
+    const camPos = V3();
+    cam.getWorldPosition(camPos);
+    const dist = camPos.distanceTo(world);
+    const r = (C.ball.radius / Math.max(0.15, dist)) * (window.innerHeight / (2 * Math.tan(
+      (cam.fov || 60) * Math.PI / 360)));
+    return { x, y, r, behind: v.z > 1 };
+  }
+
+  function onTap(ev) {
+    if (ev.target.closest && ev.target.closest('.card')) return;
+    if (G.phase === 'ready') return startRound();
+    if (G.phase !== 'play') return;
+
+    const t = (ev.touches && ev.touches[0]) || ev;
+    const s = ballScreen();
+    if (s.behind) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    const forgiveness = Math.max(46, s.r * (C.play.tapForgiveness || 1.5));
+    if (dx * dx + dy * dy > forgiveness * forgiveness) return;   // swing and a miss
+
+    const ph = C.play;
+    G.vel.y = ph.hitImpulse;
+    // where you hit it decides where it goes — off-centre taps send it sideways
+    G.vel.x = Math.max(-ph.maxSide, Math.min(ph.maxSide, -dx / forgiveness * ph.sideGain + G.vel.x * 0.2));
+    G.vel.z = Math.max(-0.25, Math.min(ph.maxDepth, G.vel.z * 0.3 + (Math.random() - 0.35) * ph.depthGain));
+    G.spin.y += 0.9; G.spin.x -= 0.6;
+
+    setScore(G.score + 1);
+    pop(C.copy.hit || 'HIT!');
+    track('rally_score', { campaign: C.id, score: G.score });
+    popProps();
+  }
+
+  function popProps() {
+    document.querySelectorAll('.prop').forEach((p, i) => {
+      const o = p.object3D;
+      if (o.userData.baseZ === undefined) o.userData.baseZ = o.position.z;
+      o.position.z = o.userData.baseZ + 0.06;
+      setTimeout(() => { o.position.z = o.userData.baseZ; }, 200 + i * 40);
+    });
+  }
+
+  function startRound() {
+    G.phase = 'count';
+    $('tapplay').classList.remove('on');
+    setScore(0);
+    resetBall();
+    ballEl.object3D.visible = false;
+    const steps = ['3', '2', '1'];
+    let i = 0;
+    const cd = $('countdown');
+    const tick = () => {
+      if (!G.tracked) { G.phase = 'ready'; cd.classList.remove('go'); return; }
+      if (i >= steps.length) {
+        cd.classList.remove('go');
+        cd.textContent = '';
+        G.phase = 'play';
+        ballEl.object3D.visible = true;
+        $('score').classList.add('on');
+        $('best').classList.add('on');
+        $('best').textContent = 'BEST ' + G.best;
+        cheer(C.copy.go || 'GO!');
+        return;
+      }
+      cd.textContent = steps[i++];
+      cd.classList.remove('go'); void cd.offsetWidth; cd.classList.add('go');
+      setTimeout(tick, 750);
+    };
+    tick();
+  }
+
+  function endRound() {
+    G.phase = 'over';
+    ballEl.object3D.visible = false;
+    $('score').classList.remove('on');
+    $('best').classList.remove('on');
+    const isBest = G.score > G.best;
+    if (isBest) {
+      G.best = G.score;
+      try { localStorage.setItem('fb_best_' + campaignId, String(G.best)); } catch (e) {}
+    }
+    $('finalScore').textContent = G.score;
+    $('newbest').style.visibility = isBest && G.score > 0 ? 'visible' : 'hidden';
+    const r = C.reward || {};
+    $('overBody').textContent = G.score >= (C.play.goal || 8)
+      ? (r.body || '') : (C.copy.tryAgain || 'Keep it up — the mural is waiting.');
+    const cta = $('overCta');
+    if (G.score >= (C.play.goal || 8) && r.url) {
+      cta.textContent = r.cta || 'Continue';
+      cta.href = r.url;
+      cta.style.display = '';
+    } else {
+      cta.style.display = 'none';
+    }
+    $('over').classList.remove('hide');
+    track('round_end', { campaign: C.id, score: G.score, best: G.best });
+    if (G.score >= (C.play.goal || 8)) track('goal_reached', { campaign: C.id, score: G.score });
+  }
+
+  $('again').addEventListener('click', () => {
+    $('over').classList.add('hide');
+    if (G.tracked) startRound(); else { G.phase = 'ready'; $('tapplay').classList.add('on'); }
+  });
+
+  $('share').addEventListener('click', async () => {
+    const text = `${C.copy.shareText || 'I scored'} ${G.score} on the ${C.brand} AR mural.`;
+    track('share_click', { campaign: C.id, score: G.score });
+    try {
+      if (navigator.share) await navigator.share({ title: C.brand, text, url: location.href });
+      else { await navigator.clipboard.writeText(text + ' ' + location.href); $('share').textContent = 'Copied!'; }
+    } catch (e) { /* user dismissed */ }
+  });
+
+  $('overCta').addEventListener('click', () => track('cta_click', { campaign: C.id }));
+
+  /* ---------------------------------------------------------------- loop */
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.04, (now - (G.last || now)) / 1000);
+    G.last = now;
+
+    if (G.phase === 'play') {
+      const ph = C.play;
+      G.vel.y -= ph.gravity * dt;
+      G.pos.x += G.vel.x * dt;
+      G.pos.y += G.vel.y * dt;
+      G.pos.z += G.vel.z * dt;
+
+      // keep it roughly in front of the wall
+      if (G.pos.x < -ph.boundX) { G.pos.x = -ph.boundX; G.vel.x *= -0.7; }
+      if (G.pos.x > ph.boundX) { G.pos.x = ph.boundX; G.vel.x *= -0.7; }
+      if (G.pos.z < ph.minZ) { G.pos.z = ph.minZ; G.vel.z *= -0.6; }
+      if (G.pos.z > ph.maxZ) { G.pos.z = ph.maxZ; G.vel.z *= -0.6; }
+
+      G.spin.x += G.vel.y * dt * 2.5;
+      G.spin.y += G.vel.x * dt * 3.5;
+      applyBall();
+
+      if (G.pos.y < ph.floorY) { pop(C.copy.miss || 'MISSED!'); endRound(); }
+    }
+
+    const b = now / 620;
+    document.querySelectorAll('.prop').forEach((p, i) => {
+      const o = p.object3D;
+      if (o.userData.baseY === undefined) o.userData.baseY = o.position.y;
+      o.position.y = o.userData.baseY + Math.sin(b + i * 1.3) * 0.012;
+      o.rotation.y = Math.sin(b * 0.6 + i) * 0.4;
+    });
+  }
+
+  /* -------------------------------------------------------------- tracking */
+  function onFound() {
+    G.tracked = true;
+    $('scan').classList.remove('on');
+    glowEl.setAttribute('material', 'opacity', 0.3);
+    setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 500);
+    popProps();
+    track('target_found', { campaign: C.id });
+    if (G.phase === 'idle' || G.phase === 'lost') {
+      G.phase = 'ready';
+      $('tapplay').classList.add('on');
+    }
+  }
+
+  function onLost() {
+    G.tracked = false;
+    track('target_lost', { campaign: C.id });
+    if (G.phase === 'over') return;
+    G.phase = 'lost';
+    $('scan').classList.add('on');
+    $('tapplay').classList.remove('on');
+    $('score').classList.remove('on');
+    $('best').classList.remove('on');
+    if (ballEl) ballEl.object3D.visible = false;
+  }
+
+  window.addEventListener('pointerdown', onTap, { passive: true });
+
+  $('start').addEventListener('click', () => {
+    const begin = () => {
+      try {
+        scene.systems['mindar-image-system'].start();
+        $('gate').classList.add('hide');
+        $('scan').classList.add('on');
+        resetBall();
+        requestAnimationFrame(loop);
+        track('camera_start', { campaign: C.id });
+      } catch (err) {
+        warn.classList.add('on');
+        warn.textContent = 'Could not start the camera: ' + (err && err.message ? err.message : err);
+      }
+    };
+    if (scene && scene.hasLoaded) begin();
+    else if (scene) scene.addEventListener('loaded', begin, { once: true });
+  });
+
+  window.addEventListener('error', (e) => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
+
+  // test hook
+  window.FIREBIRD_DEBUG = { G, ballScreen: () => ballScreen(), startRound, config: () => C };
+})();
+</script>
+</body>
+</html>

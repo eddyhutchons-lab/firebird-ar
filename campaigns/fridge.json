@@ -1,0 +1,140 @@
+{
+  "id": "fridge",
+  "brand": "The Fridge Is Full",
+  "kicker": "FIREBIRD AFRICA \u00b7 AR SITE",
+  "target": "targets/fridge.mind",
+  "palette": {
+    "ground": "#f3eee4",
+    "ink": "#121e36",
+    "accent": "#f0ac2c",
+    "ball": "#d63c2c",
+    "pop": "#5ee83f"
+  },
+  "copy": {
+    "title": "The Fridge",
+    "titleAccent": "Is Full",
+    "intro": "Point your phone at the mural. The ball lifts off the wall \u2014 keep it in the air for as long as you can.",
+    "ready": "TAP TO KICK",
+    "readyHint": "Send it into the fridge",
+    "flight": "IN FLIGHT\u2026",
+    "flightHint": "Watch for the return",
+    "returning": "HEADED BACK\u2026",
+    "returningHint": "Get ready",
+    "window": "TAP NOW!",
+    "windowHint": "This is the window",
+    "hit": "HIT!",
+    "hitHint": "Again \u2014 faster now",
+    "early": "TOO EARLY",
+    "earlyHint": "Wait until it is almost back",
+    "missed": "MISSED THE RETURN",
+    "missedHint": "Rally reset \u2014 tap to try again",
+    "tapToPlay": "Tap To Play",
+    "scanning": "Point at the mural",
+    "miss": "MISSED!",
+    "go": "GO!",
+    "overTitle": "Keep It Up!",
+    "tryAgain": "Nearly. Tap the ball the moment it drops \u2014 every hit counts.",
+    "shareText": "I scored",
+    "cheers": {
+      "2": "KEEP IT UP!",
+      "5": "NICE TOUCH!",
+      "8": "BEAT THE HIGH SCORE!",
+      "12": "SHOWING OFF NOW",
+      "20": "UNREAL"
+    }
+  },
+  "play": {
+    "gravity": 0.62,
+    "hitImpulse": 0.62,
+    "maxSide": 0.3,
+    "sideGain": 0.34,
+    "maxDepth": 0.22,
+    "depthGain": 0.26,
+    "boundX": 0.62,
+    "minZ": 0.02,
+    "maxZ": 0.62,
+    "floorY": -0.62,
+    "startY": 0.34,
+    "startZ": 0.22,
+    "tapForgiveness": 1.6,
+    "goal": 8
+  },
+  "props": [
+    {
+      "type": "box",
+      "pos": [
+        -0.32,
+        -0.1,
+        0
+      ],
+      "size": [
+        0.045,
+        0.1,
+        0.045
+      ],
+      "color": "#d63c2c"
+    },
+    {
+      "type": "cylinder",
+      "pos": [
+        -0.22,
+        -0.04,
+        0
+      ],
+      "size": [
+        0.028,
+        0.085
+      ],
+      "color": "#1e827a"
+    },
+    {
+      "type": "box",
+      "pos": [
+        -0.4,
+        0.02,
+        0
+      ],
+      "size": [
+        0.04,
+        0.09,
+        0.04
+      ],
+      "color": "#568c3a"
+    },
+    {
+      "type": "sphere",
+      "pos": [
+        0.34,
+        0.1,
+        0
+      ],
+      "size": [
+        0.042
+      ],
+      "color": "#782c52"
+    },
+    {
+      "type": "disc",
+      "pos": [
+        0.43,
+        -0.02,
+        0
+      ],
+      "size": [
+        0.032,
+        0.02
+      ],
+      "color": "#f0ac2c"
+    }
+  ],
+  "reward": {
+    "headline": "The fridge is full.",
+    "body": "You kept the rally alive. Enter your details and you are in the draw for this week's basket.",
+    "cta": "Enter the draw",
+    "url": "https://example.com/fridge-is-full"
+  },
+  "ball": {
+    "radius": 0.13,
+    "texture": "assets/ball-fridge.png"
+  }
+}
