@@ -25,7 +25,8 @@
     "caught": "CAUGHT IT",
     "miss": "MISSED!",
     "missHint": "that number is gone",
-    "resumed": "BACK ON"
+    "resumed": "BACK ON",
+    "outOfBalls": "OUT OF BALLS"
   },
   "draw": {
     "count": 6,
@@ -77,7 +78,15 @@
     "discRadius": 0.045,
     "discFill": "#f7f2e8",
     "discRing": "#e8b230",
-    "discInk": "#26143a"
+    "discInk": "#26143a",
+    "drum": [
+      -0.313,
+      0.075
+    ],
+    "drumRadius": 0.072,
+    "drumBalls": 7,
+    "drumBallRadius": 0.021,
+    "maxMisses": 3
   },
   "ball": {
     "radius": 0.075,
