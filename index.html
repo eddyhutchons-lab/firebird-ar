@@ -383,7 +383,7 @@
      drops into the next empty slot. Six taps, six numbers, and the player
      walks away with something they keep — which is what the rally never gave
      them. Positions come from the campaign file so they match the artwork. */
-  const DRAW = { picked: [], flying: null, discs: [] };
+  const DRAW = { picked: [], ball: null, discs: [], lost: 0, speed: 1, paused: false };
 
   function rand(max) {
     if (window.crypto && crypto.getRandomValues) {
@@ -419,7 +419,6 @@
     g.font = 'bold ' + (n > 9 ? 112 : 128) + 'px -apple-system, Helvetica, Arial, sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(String(n), S / 2, S / 2 + 6);
-
     const THREE = AFRAME.THREE;
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
@@ -431,69 +430,115 @@
     return mesh;
   }
 
-  function startFlight() {
-    const n = drawNumber();
-    const slot = C.draw.slots[DRAW.picked.length];
-    DRAW.picked.push(n);
-    DRAW.flying = { n, slot, t: 0, stage: 'toDrum', mesh: null };
-    $('tapplay').classList.remove('on');
-    say(C.copy.drawing || 'DRAWING…');
-  }
-
   function say(text) {
     const el = $('cheer');
     el.textContent = text; el.classList.add('on');
-    clearTimeout(say._t); say._t = setTimeout(() => el.classList.remove('on'), 1400);
+    clearTimeout(say._t); say._t = setTimeout(() => el.classList.remove('on'), 1300);
+  }
+
+  /* ---------------------------------------------------------- ramp round
+     A ball rolls down the slide painted on the wall and falls off the end.
+     Catch it before it drops and its number is yours; let it go and the
+     number is lost and you wait for the next one. Each ball rolls a little
+     faster, so the pressure builds across the six. */
+  function spawnBall(delay) {
+    DRAW.ball = { stage: 'wait', t: 0, wait: delay == null ? 0.5 : delay,
+                  n: drawNumber(), vy: 0, x: 0, y: 0 };
+    ballEl.object3D.visible = false;
+  }
+
+  function rampPoint(t) {
+    const a = C.draw.rampStart, b = C.draw.rampEnd;
+    return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t };
   }
 
   function stepDraw(dt) {
-    const f = DRAW.flying;
-    if (!f) return;
-    const cfg = C.draw, drum = cfg.drum;
+    const b = DRAW.ball, cfg = C.draw;
+    if (!b) return;
 
-    if (f.stage === 'toDrum') {
-      f.t += dt / cfg.toDrumSecs;
-      const e = f.t * f.t * (3 - 2 * f.t);
-      G.pos.x = cfg.from[0] + (drum[0] - cfg.from[0]) * e;
-      G.pos.y = cfg.from[1] + (drum[1] - cfg.from[1]) * e + Math.sin(Math.PI * e) * 0.12;
-      G.pos.z = cfg.from[2] + (drum[2] - cfg.from[2]) * e;
-      G.spin.y += dt * 9; G.spin.x += dt * 6;
-      applyBall();
-      if (f.t >= 1) {
-        f.stage = 'out'; f.t = 0;
-        f.mesh = makeDisc(f.n);
-        ballEl.object3D.visible = false;
-        glowEl.setAttribute('material', 'opacity', 0.25);
-        setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 260);
-        pop(String(f.n));
+    if (b.stage === 'wait') {
+      b.wait -= dt;
+      if (b.wait <= 0) {
+        b.stage = 'roll'; b.t = 0;
+        ballEl.object3D.visible = true;
+        say(C.copy.incoming || 'HERE IT COMES');
       }
       return;
     }
 
-    if (f.stage === 'out') {
-      f.t += dt / cfg.toSlotSecs;
-      const e = Math.min(1, f.t);
-      const ee = e * e * (3 - 2 * e);
-      const sx = cfg.chute[0], sy = cfg.chute[1];
-      f.mesh.position.set(
-        sx + (f.slot[0] - sx) * ee,
-        sy + (f.slot[1] - sy) * ee - Math.sin(Math.PI * ee) * 0.04,
-        0.05 - ee * 0.04
+    if (b.stage === 'roll') {
+      // gentle acceleration down the slide, and faster with every ball drawn
+      const base = cfg.rollSecs / DRAW.speed;
+      b.t += (dt / base) * (0.75 + b.t * 0.5);
+      const p = rampPoint(Math.min(1, b.t));
+      b.x = p.x; b.y = p.y;
+      G.pos.x = p.x; G.pos.y = p.y; G.pos.z = cfg.rollZ;
+      G.spin.y += dt * 7; G.spin.x -= dt * 5;
+      applyBall();
+      if (b.t >= 1) { b.stage = 'fall'; b.vy = -0.05; }
+      return;
+    }
+
+    if (b.stage === 'fall') {
+      b.vy -= cfg.fallGravity * dt;
+      b.y += b.vy * dt;
+      b.x += cfg.fallDrift * dt;
+      G.pos.x = b.x; G.pos.y = b.y; G.pos.z = cfg.rollZ;
+      G.spin.x -= dt * 9;
+      applyBall();
+      if (b.y < cfg.missY) {
+        DRAW.lost += 1;
+        pop(C.copy.miss || 'MISSED!');
+        say(C.copy.missHint || 'that number is gone');
+        track('number_missed', { campaign: C.id, lost: DRAW.lost });
+        ballEl.object3D.visible = false;
+        spawnBall(cfg.gapSecs);
+      }
+      return;
+    }
+
+    if (b.stage === 'toSlot') {
+      b.t += dt / cfg.toSlotSecs;
+      const e = Math.min(1, b.t), ee = e * e * (3 - 2 * e);
+      b.mesh.position.set(
+        b.fromX + (b.slot[0] - b.fromX) * ee,
+        b.fromY + (b.slot[1] - b.fromY) * ee - Math.sin(Math.PI * ee) * 0.05,
+        0.06 - ee * 0.05
       );
-      const s = 1.25 - 0.25 * ee;
-      f.mesh.scale.set(s, s, s);
+      const sc = 1.3 - 0.3 * ee;
+      b.mesh.scale.set(sc, sc, sc);
       if (e >= 1) {
-        DRAW.discs.push(f.mesh);
-        DRAW.flying = null;
-        if (DRAW.picked.length >= cfg.count) return finishDraw();
-        G.phase = 'ready';
-        resetBall();
-        ballEl.object3D.visible = true;
-        $('tapplay').textContent = (C.copy.tapNext || 'Tap for number') + ' ' + (DRAW.picked.length + 1);
-        $('tapplay').classList.add('on');
-        $('score').textContent = DRAW.picked.length;
+        DRAW.discs.push(b.mesh);
+        if (DRAW.picked.length >= cfg.count) { DRAW.ball = null; return finishDraw(); }
+        DRAW.speed = Math.min(cfg.maxSpeed || 2.2, DRAW.speed + (cfg.speedStep || 0.16));
+        spawnBall(cfg.gapSecs);
       }
     }
+  }
+
+  function catchBall() {
+    const b = DRAW.ball, cfg = C.draw;
+    if (!b || (b.stage !== 'roll' && b.stage !== 'fall')) return false;
+    const s = ballScreen();
+    if (s.behind) return false;
+    const dx = lastTap.x - s.x, dy = lastTap.y - s.y;
+    const forgive = Math.max(52, s.r * (cfg.tapForgiveness || 1.8));
+    if (dx * dx + dy * dy > forgive * forgive) return false;
+
+    DRAW.picked.push(b.n);
+    $('score').textContent = DRAW.picked.length;
+    pop(String(b.n));
+    say(C.copy.caught || 'CAUGHT IT');
+    track('number_caught', { campaign: C.id, n: b.n, index: DRAW.picked.length });
+    glowEl.setAttribute('material', 'opacity', 0.24);
+    setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 240);
+    ballEl.object3D.visible = false;
+    b.mesh = makeDisc(b.n);
+    b.mesh.position.set(G.pos.x, G.pos.y, 0.06);
+    b.fromX = G.pos.x; b.fromY = G.pos.y;
+    b.slot = cfg.slots[DRAW.picked.length - 1];
+    b.stage = 'toSlot'; b.t = 0;
+    return true;
   }
 
   function finishDraw() {
@@ -507,9 +552,11 @@
     $('share').textContent = C.copy.shareButton || 'Share your numbers';
     $('finalScore').textContent = sorted.join('  ');
     $('finalScore').style.fontSize = 'clamp(28px, 9vw, 46px)';
-    $('finalScore').style.letterSpacing = '.02em';
     $('newbest').style.visibility = 'hidden';
-    $('overBody').textContent = (C.reward && C.reward.body) || '';
+    const missNote = DRAW.lost
+      ? ` You let ${DRAW.lost} ball${DRAW.lost > 1 ? 's' : ''} drop.`
+      : ' Not a single one dropped.';
+    $('overBody').textContent = ((C.reward && C.reward.body) || '') + missNote;
     const cta = $('overCta');
     if (C.reward && C.reward.url) {
       cta.textContent = C.reward.cta || 'Continue';
@@ -517,28 +564,39 @@
       cta.style.display = '';
     } else { cta.style.display = 'none'; }
     $('over').classList.remove('hide');
-    track('draw_complete', { campaign: C.id, numbers: sorted });
+    track('draw_complete', { campaign: C.id, numbers: sorted, lost: DRAW.lost });
   }
 
   function resetDraw() {
     DRAW.discs.forEach((m) => targetEl.object3D.remove(m));
     DRAW.discs = [];
     DRAW.picked = [];
-    DRAW.flying = null;
+    DRAW.ball = null;
+    DRAW.lost = 0;
+    DRAW.speed = 1;
+    DRAW.paused = false;
     $('finalScore').style.fontSize = '';
     $('score').textContent = '0';
   }
+
+  const lastTap = { x: 0, y: 0 };
 
   function onTap(ev) {
     if (ev.target.closest && ev.target.closest('.card')) return;
 
     if (C.mode === 'picker') {
-      if (!G.tracked || DRAW.flying) return;
+      if (!G.tracked) return;
+      const t = (ev.touches && ev.touches[0]) || ev;
+      lastTap.x = t.clientX; lastTap.y = t.clientY;
       if (G.phase === 'ready' || G.phase === 'idle') {
         G.phase = 'draw';
         $('score').classList.add('on');
-        startFlight();
+        $('tapplay').classList.remove('on');
+        DRAW.speed = 1;
+        spawnBall(0.6);
+        return;
       }
+      if (G.phase === 'draw') catchBall();
       return;
     }
 
@@ -636,9 +694,8 @@
     if (C.mode === 'picker') {
       resetDraw();
       G.phase = 'ready';
-      resetBall();
-      ballEl.object3D.visible = G.tracked;
-      $('tapplay').textContent = (C.copy.tapNext || 'Tap for number') + ' 1';
+      ballEl.object3D.visible = false;
+      $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Start';
       $('tapplay').classList.add('on');
       return;
     }
@@ -665,7 +722,10 @@
     G.last = now;
 
     if (C.mode === 'picker') {
-      stepDraw(dt);
+      // Only advance the draw while the wall is in view. Otherwise a ball
+      // keeps rolling — and can be "missed" — while the phone is pointed at
+      // the pavement, which is not the player's fault.
+      if (G.tracked && G.phase === 'draw' && !DRAW.paused) stepDraw(dt);
     } else if (G.phase === 'play') {
       const ph = C.play;
       G.vel.y -= ph.gravity * dt;
@@ -703,12 +763,17 @@
     setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 500);
     popProps();
     track('target_found', { campaign: C.id });
+    if (C.mode === 'picker' && DRAW.paused) {
+      DRAW.paused = false;
+      say(C.copy.resumed || 'BACK ON');
+      spawnBall(C.draw.gapSecs || 0.9);
+      return;
+    }
     if (G.phase === 'idle' || G.phase === 'lost') {
       G.phase = 'ready';
       if (C.mode === 'picker') {
-        resetBall();
-        ballEl.object3D.visible = true;
-        $('tapplay').textContent = (C.copy.tapNext || 'Tap for number') + ' ' + (DRAW.picked.length + 1);
+        ballEl.object3D.visible = false;
+        $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Start';
       }
       $('tapplay').classList.add('on');
     }
@@ -718,6 +783,22 @@
     G.tracked = false;
     track('target_lost', { campaign: C.id });
     if (G.phase === 'over') return;
+    if (C.mode === 'picker' && G.phase === 'draw') {
+      DRAW.paused = true;
+      // a number caught in the last instant would otherwise be stranded
+      // mid-flight; snap it home so the slot is filled when you look back
+      const b = DRAW.ball;
+      if (b && b.stage === 'toSlot' && b.mesh) {
+        b.mesh.position.set(b.slot[0], b.slot[1], 0.01);
+        b.mesh.scale.set(1, 1, 1);
+        DRAW.discs.push(b.mesh);
+        DRAW.ball = null;
+      }
+      if (ballEl) ballEl.object3D.visible = false;
+      $('scan').classList.add('on');
+      $('tapplay').classList.remove('on');
+      return;                       // keep phase, picked numbers and discs
+    }
     G.phase = 'lost';
     $('scan').classList.add('on');
     $('tapplay').classList.remove('on');

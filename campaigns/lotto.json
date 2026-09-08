@@ -14,68 +14,73 @@
   "copy": {
     "title": "Lucky",
     "titleAccent": "Six",
-    "intro": "Point your phone at the wall. Tap six times and the wall draws six numbers for you.",
+    "intro": "Point your phone at the wall. A ball rolls down the slide \u2014 catch it before it drops off the end and its number is yours. Miss it and that number is gone.",
     "scanning": "Point at the wall",
-    "tapToPlay": "Tap To Draw",
-    "tapNext": "Tap for number",
-    "drawing": "DRAWING\u2026",
+    "tapToPlay": "Tap To Start",
     "overTitle": "Your six numbers",
     "shareText": "The wall picked my numbers:",
     "overLabel": "FOR THE NEXT DRAW",
-    "shareButton": "Share your numbers"
+    "shareButton": "Share your numbers",
+    "incoming": "HERE IT COMES",
+    "caught": "CAUGHT IT",
+    "miss": "MISSED!",
+    "missHint": "that number is gone",
+    "resumed": "BACK ON"
   },
   "draw": {
     "count": 6,
     "maxNumber": 52,
-    "from": [
-      0.0,
-      -0.42,
-      0.3
+    "rampStart": [
+      -0.2857,
+      0.0957
     ],
-    "drum": [
-      -0.313,
-      0.05,
-      0.02
+    "rampEnd": [
+      0.4286,
+      0.0029
     ],
-    "chute": [
-      -0.313,
-      -0.06
-    ],
+    "rollZ": 0.055,
+    "rollSecs": 2.4,
+    "speedStep": 0.16,
+    "maxSpeed": 2.2,
+    "fallGravity": 0.85,
+    "fallDrift": 0.05,
+    "missY": -0.3,
+    "gapSecs": 0.9,
+    "toSlotSecs": 0.6,
+    "tapForgiveness": 1.9,
     "slots": [
       [
         -0.3471,
-        -0.1571
+        -0.1714
       ],
       [
         -0.2071,
-        -0.1571
+        -0.1714
       ],
       [
         -0.0671,
-        -0.1571
+        -0.1714
       ],
       [
         0.0729,
-        -0.1571
+        -0.1714
       ],
       [
         0.2129,
-        -0.1571
+        -0.1714
       ],
       [
         0.3529,
-        -0.1571
+        -0.1714
       ]
     ],
     "discRadius": 0.045,
     "discFill": "#f7f2e8",
     "discRing": "#e8b230",
-    "discInk": "#26143a",
-    "toDrumSecs": 0.55,
-    "toSlotSecs": 0.65
+    "discInk": "#26143a"
   },
   "ball": {
-    "radius": 0.1,
+    "radius": 0.075,
     "texture": "assets/ball-lotto.png"
   },
   "play": {
