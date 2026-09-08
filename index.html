@@ -152,7 +152,7 @@
 
 <div id="over" class="card hide">
   <h1 id="overTitle">Keep It Up!</h1>
-  <div class="lbl">SCORE</div>
+  <div class="lbl" id="overLbl">SCORE</div>
   <div class="num" id="finalScore">0</div>
   <div id="newbest">NEW PERSONAL BEST</div>
   <p id="overBody"></p>
@@ -373,8 +373,171 @@
     return { x, y, r, behind: v.z > 1 };
   }
 
+  /* ============================================================== DRAW MODE
+     "picker": the wall draws numbers for you. Tap, the ball flies into the
+     drum painted on the mural, a numbered ball rolls out of the chute and
+     drops into the next empty slot. Six taps, six numbers, and the player
+     walks away with something they keep — which is what the rally never gave
+     them. Positions come from the campaign file so they match the artwork. */
+  const DRAW = { picked: [], flying: null, discs: [] };
+
+  function rand(max) {
+    if (window.crypto && crypto.getRandomValues) {
+      const a = new Uint32Array(1);
+      const limit = Math.floor(0xffffffff / max) * max;
+      do { crypto.getRandomValues(a); } while (a[0] >= limit);
+      return (a[0] % max) + 1;
+    }
+    return Math.floor(Math.random() * max) + 1;
+  }
+
+  function drawNumber() {
+    const max = C.draw.maxNumber;
+    let n;
+    do { n = rand(max); } while (DRAW.picked.includes(n));
+    return n;
+  }
+
+  // Numbered disc, drawn to a canvas so there are no font files to ship.
+  function makeDisc(n) {
+    const S = 256, cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    g.fillStyle = C.draw.discFill || '#f7f2e8';
+    g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 8, 0, 6.284); g.fill();
+    g.lineWidth = 12; g.strokeStyle = C.draw.discRing || '#e8b230'; g.stroke();
+    const grad = g.createRadialGradient(S * 0.36, S * 0.3, 8, S * 0.5, S * 0.5, S * 0.6);
+    grad.addColorStop(0, 'rgba(255,255,255,.85)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 14, 0, 6.284); g.fill();
+    g.fillStyle = C.draw.discInk || '#26143a';
+    g.font = 'bold ' + (n > 9 ? 112 : 128) + 'px -apple-system, Helvetica, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(n), S / 2, S / 2 + 6);
+
+    const THREE = AFRAME.THREE;
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
+    const mesh = new THREE.Mesh(
+      new THREE.CircleGeometry(C.draw.discRadius, 40),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+    );
+    targetEl.object3D.add(mesh);
+    return mesh;
+  }
+
+  function startFlight() {
+    const n = drawNumber();
+    const slot = C.draw.slots[DRAW.picked.length];
+    DRAW.picked.push(n);
+    DRAW.flying = { n, slot, t: 0, stage: 'toDrum', mesh: null };
+    $('tapplay').classList.remove('on');
+    say(C.copy.drawing || 'DRAWING…');
+  }
+
+  function say(text) {
+    const el = $('cheer');
+    el.textContent = text; el.classList.add('on');
+    clearTimeout(say._t); say._t = setTimeout(() => el.classList.remove('on'), 1400);
+  }
+
+  function stepDraw(dt) {
+    const f = DRAW.flying;
+    if (!f) return;
+    const cfg = C.draw, drum = cfg.drum;
+
+    if (f.stage === 'toDrum') {
+      f.t += dt / cfg.toDrumSecs;
+      const e = f.t * f.t * (3 - 2 * f.t);
+      G.pos.x = cfg.from[0] + (drum[0] - cfg.from[0]) * e;
+      G.pos.y = cfg.from[1] + (drum[1] - cfg.from[1]) * e + Math.sin(Math.PI * e) * 0.12;
+      G.pos.z = cfg.from[2] + (drum[2] - cfg.from[2]) * e;
+      G.spin.y += dt * 9; G.spin.x += dt * 6;
+      applyBall();
+      if (f.t >= 1) {
+        f.stage = 'out'; f.t = 0;
+        f.mesh = makeDisc(f.n);
+        ballEl.object3D.visible = false;
+        glowEl.setAttribute('material', 'opacity', 0.25);
+        setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 260);
+        pop(String(f.n));
+      }
+      return;
+    }
+
+    if (f.stage === 'out') {
+      f.t += dt / cfg.toSlotSecs;
+      const e = Math.min(1, f.t);
+      const ee = e * e * (3 - 2 * e);
+      const sx = cfg.chute[0], sy = cfg.chute[1];
+      f.mesh.position.set(
+        sx + (f.slot[0] - sx) * ee,
+        sy + (f.slot[1] - sy) * ee - Math.sin(Math.PI * ee) * 0.04,
+        0.05 - ee * 0.04
+      );
+      const s = 1.25 - 0.25 * ee;
+      f.mesh.scale.set(s, s, s);
+      if (e >= 1) {
+        DRAW.discs.push(f.mesh);
+        DRAW.flying = null;
+        if (DRAW.picked.length >= cfg.count) return finishDraw();
+        G.phase = 'ready';
+        resetBall();
+        ballEl.object3D.visible = true;
+        $('tapplay').textContent = (C.copy.tapNext || 'Tap for number') + ' ' + (DRAW.picked.length + 1);
+        $('tapplay').classList.add('on');
+        $('score').textContent = DRAW.picked.length;
+      }
+    }
+  }
+
+  function finishDraw() {
+    G.phase = 'over';
+    ballEl.object3D.visible = false;
+    $('score').classList.remove('on');
+    $('best').classList.remove('on');
+    const sorted = DRAW.picked.slice().sort((a, b) => a - b);
+    $('overTitle').textContent = C.copy.overTitle || 'Your numbers';
+    $('overLbl').textContent = C.copy.overLabel || 'FOR THE NEXT DRAW';
+    $('share').textContent = C.copy.shareButton || 'Share your numbers';
+    $('finalScore').textContent = sorted.join('  ');
+    $('finalScore').style.fontSize = 'clamp(28px, 9vw, 46px)';
+    $('finalScore').style.letterSpacing = '.02em';
+    $('newbest').style.visibility = 'hidden';
+    $('overBody').textContent = (C.reward && C.reward.body) || '';
+    const cta = $('overCta');
+    if (C.reward && C.reward.url) {
+      cta.textContent = C.reward.cta || 'Continue';
+      cta.href = C.reward.url;
+      cta.style.display = '';
+    } else { cta.style.display = 'none'; }
+    $('over').classList.remove('hide');
+    track('draw_complete', { campaign: C.id, numbers: sorted });
+  }
+
+  function resetDraw() {
+    DRAW.discs.forEach((m) => targetEl.object3D.remove(m));
+    DRAW.discs = [];
+    DRAW.picked = [];
+    DRAW.flying = null;
+    $('finalScore').style.fontSize = '';
+    $('score').textContent = '0';
+  }
+
   function onTap(ev) {
     if (ev.target.closest && ev.target.closest('.card')) return;
+
+    if (C.mode === 'picker') {
+      if (!G.tracked || DRAW.flying) return;
+      if (G.phase === 'ready' || G.phase === 'idle') {
+        G.phase = 'draw';
+        $('score').classList.add('on');
+        startFlight();
+      }
+      return;
+    }
+
     if (G.phase === 'ready') return startRound();
     if (G.phase !== 'play') return;
 
@@ -466,11 +629,22 @@
 
   $('again').addEventListener('click', () => {
     $('over').classList.add('hide');
+    if (C.mode === 'picker') {
+      resetDraw();
+      G.phase = 'ready';
+      resetBall();
+      ballEl.object3D.visible = G.tracked;
+      $('tapplay').textContent = (C.copy.tapNext || 'Tap for number') + ' 1';
+      $('tapplay').classList.add('on');
+      return;
+    }
     if (G.tracked) startRound(); else { G.phase = 'ready'; $('tapplay').classList.add('on'); }
   });
 
   $('share').addEventListener('click', async () => {
-    const text = `${C.copy.shareText || 'I scored'} ${G.score} on the ${C.brand} AR mural.`;
+    const text = C.mode === 'picker'
+      ? `${C.copy.shareText || 'The wall picked my numbers:'} ${DRAW.picked.slice().sort((a,b)=>a-b).join(', ')} — ${C.brand}.`
+      : `${C.copy.shareText || 'I scored'} ${G.score} on the ${C.brand} AR mural.`;
     track('share_click', { campaign: C.id, score: G.score });
     try {
       if (navigator.share) await navigator.share({ title: C.brand, text, url: location.href });
@@ -486,7 +660,9 @@
     const dt = Math.min(0.04, (now - (G.last || now)) / 1000);
     G.last = now;
 
-    if (G.phase === 'play') {
+    if (C.mode === 'picker') {
+      stepDraw(dt);
+    } else if (G.phase === 'play') {
       const ph = C.play;
       G.vel.y -= ph.gravity * dt;
       G.pos.x += G.vel.x * dt;
@@ -525,6 +701,11 @@
     track('target_found', { campaign: C.id });
     if (G.phase === 'idle' || G.phase === 'lost') {
       G.phase = 'ready';
+      if (C.mode === 'picker') {
+        resetBall();
+        ballEl.object3D.visible = true;
+        $('tapplay').textContent = (C.copy.tapNext || 'Tap for number') + ' ' + (DRAW.picked.length + 1);
+      }
       $('tapplay').classList.add('on');
     }
   }
@@ -564,7 +745,7 @@
   window.addEventListener('error', (e) => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
 
   // test hook
-  window.FIREBIRD_DEBUG = { G, ballScreen: () => ballScreen(), startRound, config: () => C };
+  window.FIREBIRD_DEBUG = { G, DRAW, ballScreen: () => ballScreen(), startRound, config: () => C };
 })();
 </script>
 </body>

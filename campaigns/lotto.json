@@ -1,0 +1,103 @@
+{
+  "id": "lotto",
+  "mode": "picker",
+  "brand": "Lucky Six",
+  "kicker": "FIREBIRD AFRICA \u00b7 AR SITE",
+  "target": "targets/lotto.mind",
+  "palette": {
+    "ground": "#f4f0f8",
+    "ink": "#26143a",
+    "accent": "#e8b230",
+    "ball": "#e84e58",
+    "pop": "#ffd447"
+  },
+  "copy": {
+    "title": "Lucky",
+    "titleAccent": "Six",
+    "intro": "Point your phone at the wall. Tap six times and the wall draws six numbers for you.",
+    "scanning": "Point at the wall",
+    "tapToPlay": "Tap To Draw",
+    "tapNext": "Tap for number",
+    "drawing": "DRAWING\u2026",
+    "overTitle": "Your six numbers",
+    "shareText": "The wall picked my numbers:",
+    "overLabel": "FOR THE NEXT DRAW",
+    "shareButton": "Share your numbers"
+  },
+  "draw": {
+    "count": 6,
+    "maxNumber": 52,
+    "from": [
+      0.0,
+      -0.42,
+      0.3
+    ],
+    "drum": [
+      -0.313,
+      0.05,
+      0.02
+    ],
+    "chute": [
+      -0.313,
+      -0.06
+    ],
+    "slots": [
+      [
+        -0.3471,
+        -0.1571
+      ],
+      [
+        -0.2071,
+        -0.1571
+      ],
+      [
+        -0.0671,
+        -0.1571
+      ],
+      [
+        0.0729,
+        -0.1571
+      ],
+      [
+        0.2129,
+        -0.1571
+      ],
+      [
+        0.3529,
+        -0.1571
+      ]
+    ],
+    "discRadius": 0.045,
+    "discFill": "#f7f2e8",
+    "discRing": "#e8b230",
+    "discInk": "#26143a",
+    "toDrumSecs": 0.55,
+    "toSlotSecs": 0.65
+  },
+  "ball": {
+    "radius": 0.1,
+    "texture": "assets/ball-lotto.png"
+  },
+  "play": {
+    "startY": 0.34,
+    "startZ": 0.22,
+    "gravity": 0.62,
+    "hitImpulse": 0.62,
+    "maxSide": 0.3,
+    "sideGain": 0.34,
+    "maxDepth": 0.22,
+    "depthGain": 0.26,
+    "boundX": 0.62,
+    "minZ": 0.02,
+    "maxZ": 0.62,
+    "floorY": -0.62,
+    "tapForgiveness": 1.6,
+    "goal": 6
+  },
+  "props": [],
+  "reward": {
+    "body": "These are yours. Screenshot them, or tap below to see the next draw date. Playing the lottery is for over-18s only.",
+    "cta": "See the next draw",
+    "url": "https://example.com/next-draw"
+  }
+}
