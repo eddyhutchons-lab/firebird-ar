@@ -181,8 +181,11 @@
   const $ = (id) => document.getElementById(id);
   const track = window.FIREBIRD_TRACK || function (e, d) { console.log('[track]', e, d || {}); };
 
+  // Which campaign loads: ?c=name wins, otherwise site.json's defaultCampaign.
+  // Keeping the default in site.json means switching which experience the plain
+  // link shows is a one-word edit, not a code change.
   const params = new URLSearchParams(location.search);
-  const campaignId = (params.get('c') || 'fridge').replace(/[^a-z0-9_-]/gi, '');
+  let campaignId = (params.get('c') || '').replace(/[^a-z0-9_-]/gi, '');
 
   const ua = navigator.userAgent || '';
   const inApp = /FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|MicroMessenger/i.test(ua);
@@ -207,6 +210,7 @@
         const code = (s.passcode || '').trim();
         let already = false;
         try { already = sessionStorage.getItem('fb_unlocked') === code && code !== ''; } catch (e) {}
+        if (!campaignId) campaignId = (s.defaultCampaign || 'fridge').replace(/[^a-z0-9_-]/gi, '');
         if (!code || already) { $('gate').classList.remove('hide'); return resolve(); }
         $('lockTitle').textContent = s.lockTitle || 'Work in progress';
         $('lockBody').textContent = s.lockBody || 'This is an internal prototype, not a public site.';

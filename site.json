@@ -1,6 +1,7 @@
 {
-  "_comment": "Site-wide access settings. Change 'passcode' to whatever you want to tell people, or set it to \"\" to remove the gate entirely.",
+  "_comment": "Site-wide settings. 'defaultCampaign' is which experience the plain link shows (fridge, golden or lotto) - adding ?c=name to the link still overrides it. Set 'passcode' to \"\" to remove the entry gate.",
   "passcode": "firebird",
   "lockTitle": "Work in progress",
-  "lockBody": "This is an internal prototype, not a public site. Enter the passcode Eddy sent you."
+  "lockBody": "This is an internal prototype, not a public site. Enter the passcode Eddy sent you.",
+  "defaultCampaign": "lotto"
 }
