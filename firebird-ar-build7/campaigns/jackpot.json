@@ -1,0 +1,121 @@
+{
+  "id": "jackpot",
+  "mode": "picker",
+  "brand": "Lottery Jackpot",
+  "kicker": "FIREBIRD AFRICA \u00b7 AR SITE",
+  "target": "targets/jackpot.mind",
+  "palette": {
+    "ground": "#0c0b0d",
+    "ink": "#f6f0e0",
+    "accent": "#ecbe48",
+    "ball": "#e2342c",
+    "pop": "#ffd447"
+  },
+  "copy": {
+    "title": "Lottery",
+    "titleAccent": "Jackpot",
+    "intro": "Point your phone at the board. Balls roll out of the drum and down the rail \u2014 catch one before it reaches the red chute and its number drops into a port.",
+    "scanning": "Point at the wall",
+    "tapToPlay": "Tap To Start",
+    "overTitle": "Your six numbers",
+    "shareText": "The wall picked my numbers:",
+    "overLabel": "FOR THE NEXT DRAW",
+    "shareButton": "Share your numbers",
+    "incoming": "HERE IT COMES",
+    "caught": "CAUGHT IT",
+    "miss": "MISSED!",
+    "missHint": "that number is gone",
+    "resumed": "BACK ON",
+    "outOfBalls": "OUT OF BALLS"
+  },
+  "draw": {
+    "count": 6,
+    "maxNumber": 52,
+    "rampStart": [
+      -0.292,
+      0.0685
+    ],
+    "rampEnd": [
+      0.3559,
+      0.0021
+    ],
+    "rollZ": 0.022,
+    "rollSecs": 2.5,
+    "speedStep": 0.16,
+    "maxSpeed": 2.2,
+    "fallGravity": 0.8,
+    "fallDrift": 0.06,
+    "missY": -0.26,
+    "gapSecs": 0.9,
+    "toSlotSecs": 0.6,
+    "tapForgiveness": 1.9,
+    "slots": [
+      [
+        -0.3294,
+        -0.1453
+      ],
+      [
+        -0.2077,
+        -0.1453
+      ],
+      [
+        -0.0859,
+        -0.1447
+      ],
+      [
+        0.0359,
+        -0.1453
+      ],
+      [
+        0.1588,
+        -0.1459
+      ],
+      [
+        0.2836,
+        -0.1465
+      ]
+    ],
+    "discRadius": 0.0398,
+    "discFill": "#f8f4e8",
+    "discRing": "#ecbe48",
+    "discInk": "#14110f",
+    "drum": [
+      -0.4283,
+      0.091
+    ],
+    "drumRadius": 0.062,
+    "drumBalls": 5,
+    "drumBallRadius": 0.018,
+    "maxMisses": 3,
+    "rampCtrl": [
+      0.0319,
+      0.0081
+    ]
+  },
+  "ball": {
+    "radius": 0.035,
+    "texture": "assets/ball-lotto.png"
+  },
+  "play": {
+    "startY": 0.34,
+    "startZ": 0.22,
+    "gravity": 0.62,
+    "hitImpulse": 0.62,
+    "maxSide": 0.3,
+    "sideGain": 0.34,
+    "maxDepth": 0.22,
+    "depthGain": 0.26,
+    "boundX": 0.62,
+    "minZ": 0.02,
+    "maxZ": 0.62,
+    "floorY": -0.62,
+    "tapForgiveness": 1.6,
+    "goal": 6
+  },
+  "props": [],
+  "reward": {
+    "body": "These are yours. Screenshot them, or tap below to see the next draw date. Playing the lottery is for over-18s only.",
+    "cta": "See the next draw",
+    "url": "https://example.com/next-draw"
+  }
+}
