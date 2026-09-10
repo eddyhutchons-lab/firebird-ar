@@ -84,7 +84,7 @@
       0.091
     ],
     "drumRadius": 0.062,
-    "drumBalls": 5,
+    "drumBalls": 8,
     "drumBallRadius": 0.018,
     "maxMisses": 3,
     "rampCtrl": [
@@ -94,7 +94,57 @@
   },
   "ball": {
     "radius": 0.035,
-    "texture": "ball-lotto.png"
+    "bands": [
+      [
+        1,
+        6,
+        0,
+        "#eb6e18"
+      ],
+      [
+        7,
+        12,
+        1,
+        "#f7c71a"
+      ],
+      [
+        13,
+        18,
+        2,
+        "#1a9250"
+      ],
+      [
+        19,
+        24,
+        3,
+        "#1c62be"
+      ],
+      [
+        25,
+        30,
+        4,
+        "#e85c96"
+      ],
+      [
+        31,
+        36,
+        5,
+        "#7a3c9e"
+      ],
+      [
+        37,
+        42,
+        6,
+        "#fcfbf8"
+      ],
+      [
+        43,
+        52,
+        7,
+        "#c69624"
+      ]
+    ],
+    "atlas": "lottoballs.png"
   },
   "play": {
     "startY": 0.34,

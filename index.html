@@ -208,6 +208,7 @@
   }
 
   let C, scene, targetEl, ballEl, shadowEl, glowEl;
+  let TEX = [], BANDS = null, lastTex = -1;
   // Every asset is fetched with ?v=<build>. Without this the phone happily
   // keeps serving yesterday's ball and yesterday's game from its cache, and
   // you spend an evening wondering why an upload did nothing.
@@ -290,16 +291,25 @@
       return `<a-box class="prop" position="${pos}" width="${pr.size[0]}" height="${pr.size[1]}" depth="${pr.size[2]}" ${mat}></a-box>`;
     }).join('');
 
-    const ballMat = C.ball && C.ball.texture
-      ? `material="src: ${C.ball.texture}?v=${BUILD}; roughness:.45; metalness:0"`
-      : `material="color:${C.palette.ball || '#d63c2c'}; roughness:.4"`;
+    // A campaign may give one texture, a flat set, or bands. Bands are the
+    // real thing: in the South African draw a ball's colour is fixed by its
+    // number, so the colour is information rather than decoration. Whichever
+    // form is used, every texture is preloaded into <a-assets> — swapping a
+    // ball must never wait on a fetch mid-roll.
+    BANDS = (C.ball && C.ball.bands) || null;
+    TEX = (BANDS && !C.ball.atlas) ? BANDS.map((b) => b[2])
+        : (C.ball && C.ball.textures && C.ball.textures.length) ? C.ball.textures.slice()
+        : (C.ball && C.ball.texture ? [C.ball.texture] : []);
+    const ballMat = TEX.length
+      ? `material="src: #balltex0; roughness:.28; metalness:.06"`
+      : `material="color:${(BANDS && BANDS[0][3]) || C.palette.ball || '#d63c2c'}; roughness:.28; metalness:.06"`;
 
     document.body.insertAdjacentHTML('beforeend',
       `<a-scene mindar-image="imageTargetSrc: ${C.target}?v=${BUILD}; autoStart: false; uiScanning: no; uiLoading: no; uiError: no;
          filterMinCF: 0.0001; filterBeta: 0.005; missTolerance: 6; warmupTolerance: 3"
         color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true"
         vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-        <a-assets>${C.ball && C.ball.texture ? `<img id="balltex" src="${C.ball.texture}?v=${BUILD}" crossorigin="anonymous">` : ''}</a-assets>
+        <a-assets>${TEX.map((t, i) => `<img id="balltex${i}" src="${t}?v=${BUILD}" crossorigin="anonymous">`).join('')}</a-assets>
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         <a-entity id="target" mindar-image-target="targetIndex: 0">
           <a-entity light="type: ambient; intensity: 0.9"></a-entity>
@@ -316,6 +326,7 @@
 
     scene = document.querySelector('a-scene');
     targetEl = $('target'); ballEl = $('ball'); shadowEl = $('shadow'); glowEl = $('glow');
+    if (C.ball && C.ball.atlas) loadAtlas(C.ball.atlas);
     targetEl.addEventListener('targetFound', onFound);
     targetEl.addEventListener('targetLost', onLost);
     ballEl.object3D.visible = false;
@@ -433,7 +444,12 @@
     g.clearRect(0, 0, S, S);
     g.fillStyle = C.draw.discFill || '#f7f2e8';
     g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 8, 0, 6.284); g.fill();
-    g.lineWidth = 12; g.strokeStyle = C.draw.discRing || '#e8b230'; g.stroke();
+    // The ring keeps the colour of the ball it came from, so a filled port
+    // still reads as the orange one, the blue one — the band survives the catch.
+    const bi = bandOf(n);
+    g.lineWidth = 12;
+    g.strokeStyle = (bi >= 0 && BANDS[bi][3]) || C.draw.discRing || '#e8b230';
+    g.stroke();
     const grad = g.createRadialGradient(S * 0.36, S * 0.3, 8, S * 0.5, S * 0.5, S * 0.6);
     grad.addColorStop(0, 'rgba(255,255,255,.85)');
     grad.addColorStop(1, 'rgba(255,255,255,0)');
@@ -464,10 +480,75 @@
      Catch it before it drops and its number is yours; let it go and the
      number is lost and you wait for the next one. Each ball rolls a little
      faster, so the pressure builds across the six. */
+  /* ------------------------------------------------------------ ball atlas
+     One image holding every band's map, stacked top to bottom, sliced once
+     here. Cheaper to upload and to serve than eight files, and it means a
+     ball never changes colour a frame late waiting on a fetch.
+
+     If the sheet fails to load the ball keeps the flat band colour it was
+     built with, so the round still plays — just without the printed window. */
+  const ATLAS = [];
+  function loadAtlas(src) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const THREE = AFRAME.THREE, rows = BANDS.length, h = img.height / rows;
+      for (let i = 0; i < rows; i++) {
+        const cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, i * h, img.width, h, 0, 0, img.width, h);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace || t.colorSpace;
+        t.anisotropy = 4;
+        ATLAS[i] = t;
+      }
+      if (DRAW.ball) setBallTexture(DRAW.ball.n);
+    };
+    img.onerror = () => track('atlas_failed', { campaign: C.id });
+    img.src = src + '?v=' + BUILD;
+  }
+
+  /* Which band a number belongs to. Bands are [low, high, texture, hex] and
+     the last one is open-ended, so extending the game's range never leaves a
+     number without a colour. */
+  function bandOf(n) {
+    if (!BANDS) return -1;
+    for (let i = 0; i < BANDS.length; i++) if (n >= BANDS[i][0] && n <= BANDS[i][1]) return i;
+    return BANDS.length - 1;
+  }
+
+  /* Banded: the number decides the colour, as it does in the real draw.
+     Unbanded: any colour but the one just used, so a fresh ball reads as
+     fresh rather than as the previous one having never left. */
+  function setBallTexture(n) {
+    let i;
+    if (BANDS) {
+      i = bandOf(n);
+    } else {
+      if (TEX.length < 2) return;
+      i = lastTex;
+      while (i === lastTex) i = Math.floor(Math.random() * TEX.length);
+    }
+    lastTex = i;
+    if (ATLAS[i]) {
+      const m = ballEl.getObject3D('mesh');
+      if (m) { m.material.map = ATLAS[i]; m.material.color.setHex(0xffffff); m.material.needsUpdate = true; }
+      return;
+    }
+    if (BANDS && C.ball.atlas) {          // sheet not in yet — hold the band colour
+      const m = ballEl.getObject3D('mesh');
+      if (m && BANDS[i][3]) { m.material.color.set(BANDS[i][3]); m.material.needsUpdate = true; }
+      return;
+    }
+    if (TEX.length) ballEl.setAttribute('material', 'src', '#balltex' + i);
+  }
+
   function spawnBall(delay) {
+    const n = drawNumber();
     DRAW.ball = { stage: 'wait', t: 0, wait: delay == null ? 0.5 : delay,
-                  n: drawNumber(), vy: 0, x: 0, y: 0 };
+                  n: n, vy: 0, x: 0, y: 0 };
     ballEl.object3D.visible = false;
+    setBallTexture(n);
   }
 
   /* The rail is a quadratic bezier when the campaign supplies a control point,
@@ -502,7 +583,10 @@
       const p = rampPoint(Math.min(1, b.t));
       b.x = p.x; b.y = p.y;
       G.pos.x = p.x; G.pos.y = p.y; G.pos.z = cfg.rollZ;
-      G.spin.y += dt * 7; G.spin.x -= dt * 5;
+      // Spin mostly about Y. The number windows sit on the ball's equator, so
+      // a Y-dominant spin parades them across the front once a quarter turn,
+      // where an even tumble hides them edge-on most of the way down.
+      G.spin.y += dt * 6.5; G.spin.x -= dt * 1.1;
       applyBall();
       if (b.t >= 1) { b.stage = 'fall'; b.vy = -0.05; }
       return;
@@ -644,9 +728,14 @@
     if (!cfg.drum || AGIT.length) return;
     const n = cfg.drumBalls || 6;
     for (let i = 0; i < n; i++) {
+      // Tumbling balls in the machine colours, so the one that rolls out is
+      // recognisably one of these rather than arriving from nowhere.
+      const pal = cfg.drumColors || (BANDS && BANDS.map((b) => b[3]).filter(Boolean))
+                  || ['#d02a28', '#1c60ba', '#1a8e4e', '#f6c216', '#7c3e9e', '#f2eee6'];
       const m = new THREE.Mesh(
         new THREE.SphereGeometry(cfg.drumBallRadius || 0.022, 18, 14),
-        new THREE.MeshStandardMaterial({ color: 0xf6f1e4, roughness: 0.5 })
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(pal[i % pal.length]),
+                                         roughness: 0.32, metalness: 0.05 })
       );
       m.userData.a = (i / n) * Math.PI * 2;
       m.userData.r = (cfg.drumRadius || 0.075) * (0.35 + 0.6 * ((i * 7 % 5) / 5));
@@ -920,7 +1009,12 @@
   window.addEventListener('error', (e) => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
 
   // test hook
-  window.FIREBIRD_DEBUG = { G, DRAW, ballScreen: () => ballScreen(), startRound, config: () => C };
+  window.FIREBIRD_DEBUG = { G, DRAW, ballScreen: () => ballScreen(), startRound, config: () => C,
+    // which band the ball is actually wearing, and whether it came from the
+    // sheet or fell back to a flat colour — the audit checks the render, not
+    // the intent.
+    ballBand: () => ({ band: lastTex, fromAtlas: !!ATLAS[lastTex] }),
+    dressBall: (n) => setBallTexture(n) };
 })();
 </script>
 </body>
