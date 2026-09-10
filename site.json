@@ -3,6 +3,6 @@
   "passcode": "firebird",
   "lockTitle": "Work in progress",
   "lockBody": "This is an internal prototype, not a public site. Enter the passcode Eddy sent you.",
-  "defaultCampaign": "lotto",
-  "build": "4-slide"
+  "defaultCampaign": "jackpot",
+  "build": "8-flat"
 }

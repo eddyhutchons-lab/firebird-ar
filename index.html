@@ -217,7 +217,10 @@
      A doorman, not a vault: it makes a forwarded link useless, but the code
      lives in the page. Real locking belongs on the host. */
   function gateAccess() {
-    return fetch('site.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
+    // site.json carries the build number, so it can never be read from cache —
+    // a stale copy here makes every other ?v= stamp point at the wrong build.
+    return fetch('site.json?t=' + Date.now(), { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
       .then((s) => new Promise((resolve) => {
         const code = (s.passcode || '').trim();
         let already = false;
@@ -242,7 +245,13 @@
       }));
   }
 
-  gateAccess().then(() => fetch('campaigns/' + campaignId + '.json?v=' + BUILD)
+  // Campaigns are looked for beside index.html first, then in campaigns/.
+  // Root-level wins so a new experience can be added by dropping loose files
+  // onto the repo, with no folder navigation and nothing to nest wrongly.
+  const loadCampaign = (id) => fetch(id + '.json?v=' + BUILD)
+    .then((r) => (r.ok ? r : fetch('campaigns/' + id + '.json?v=' + BUILD)));
+
+  gateAccess().then(() => loadCampaign(campaignId)
     .then((r) => { if (!r.ok) throw new Error('campaign ' + campaignId + ' not found'); return r.json(); })
     .then(boot)
     .catch((e) => {
@@ -461,9 +470,15 @@
     ballEl.object3D.visible = false;
   }
 
+  /* The rail is a quadratic bezier when the campaign supplies a control point,
+     so the ball can follow a painted curve rather than only a straight ramp.
+     Omit rampCtrl and it degrades to the straight line it used to be. */
   function rampPoint(t) {
-    const a = C.draw.rampStart, b = C.draw.rampEnd;
-    return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t };
+    const a = C.draw.rampStart, b = C.draw.rampEnd, c = C.draw.rampCtrl;
+    if (!c) return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t };
+    const m = 1 - t;
+    return { x: m * m * a[0] + 2 * m * t * c[0] + t * t * b[0],
+             y: m * m * a[1] + 2 * m * t * c[1] + t * t * b[1] };
   }
 
   function stepDraw(dt) {
