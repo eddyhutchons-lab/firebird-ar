@@ -991,6 +991,7 @@
   $('start').addEventListener('click', () => {
     const begin = () => {
       try {
+        scene.addEventListener('arReady', watchRotation, { once: true });
         scene.systems['mindar-image-system'].start();
         $('gate').classList.add('hide');
         $('scan').classList.add('on');
@@ -1005,6 +1006,35 @@
     if (scene && scene.hasLoaded) begin();
     else if (scene) scene.addEventListener('loaded', begin, { once: true });
   });
+
+  /* Turning the phone: the camera picture swaps between tall and wide, so the tracker is rebuilt
+     for the new shape. Without this, the AR stays lined up for the way the phone was held at the start. */
+  function watchRotation() {
+    const sys = scene.systems['mindar-image-system'];
+    const v = sys.video; if (!v) return;
+    let wide = v.videoWidth > v.videoHeight, busy = false, again = false;
+    const check = async () => {
+      const w = v.videoWidth, h = v.videoHeight;
+      if (!w || !h || !sys.controller) return;
+      if ((w > h) === wide) { try { sys._resize(); } catch (e) {} return; }
+      if (busy) { again = true; return; }
+      busy = true; wide = w > h;
+      try {
+        sys.controller.stopProcessVideo();
+        await new Promise(r => setTimeout(r, 350));          /* let the last frame finish */
+        try { sys.controller.dispose(); } catch (e) {}
+        v.setAttribute('width', w); v.setAttribute('height', h);
+        await sys._startAR();
+        track('rotated', { campaign: C.id, wide });
+      } catch (e) { $('dbg').textContent = 'Turn: ' + String(e && e.message || e).slice(0, 100); }
+      busy = false;
+      if (again) { again = false; check(); }
+    };
+    v.addEventListener('resize', check);                    /* the camera picture changed shape */
+    addEventListener('orientationchange', () => setTimeout(check, 400));
+    addEventListener('resize', () => setTimeout(check, 250));
+    setInterval(check, 1000);                               /* backup for browsers that don't tell us */
+  }
 
   window.addEventListener('error', (e) => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
 
