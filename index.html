@@ -3,1048 +3,377 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Firebird AR — interactive mural</title>
-<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-<meta name="referrer" content="no-referrer">
-
-<!-- Vendored so a live site has no CDN dependency. CDN equivalents if you prefer:
-     https://aframe.io/releases/1.5.0/aframe.min.js
-     https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js -->
+<title>What's Cooking? 2 · Banner AR</title>
+<meta name="theme-color" content="#0f3a7a">
 <script src="./vendor/aframe.min.js"></script>
 <script src="./vendor/mindar-image-aframe.prod.js"></script>
-
 <style>
-  :root{
-    --ground:#f3eee4; --ink:#121e36; --accent:#f0ac2c; --ball:#d63c2c;
-    --pop:#5ee83f; --panel:rgba(18,30,54,.9);
-  }
+  @font-face{font-family:"KidsRock";src:url(assets/fonts/kidsrock.woff2) format("woff2");font-display:swap}
+  @font-face{font-family:"Fredoka";font-weight:300 700;src:url(assets/fonts/fredoka.woff2) format("woff2");font-display:swap}
+  :root{ --ink:#141a33; --orange:#fdaa00; --orange2:#f08a00; --blue:#2f8cff; --panel:rgba(12,32,74,.92); }
   *{box-sizing:border-box}
-
-  /* MindAR injects its <video> into <body> at z-index:-2 — the ROOT stacking
-     context — so an opaque background on <body> paints straight over the
-     camera. Letterbox colour lives on <html>; <body> stays transparent. */
+  /* MindAR puts its camera <video> straight into <body>; the body must stay see-through */
   html{background:#000;height:100%;margin:0}
-  body{margin:0;height:100%;overflow:hidden;background:transparent;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  body{margin:0;height:100%;overflow:hidden;background:transparent;color:#fff;
+    font-family:"Fredoka",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   body > video{z-index:0 !important}
-  a-scene{position:fixed;inset:0;z-index:1}
-
-  /* ---------------------------------------------------------------- HUD */
-  #ui{position:fixed;inset:0;z-index:10;pointer-events:none;
-    padding:calc(env(safe-area-inset-top,0px) + 16px) 18px calc(env(safe-area-inset-bottom,0px) + 20px)}
-
-  #brand{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);left:16px;
-    font-size:15px;font-weight:800;letter-spacing:.16em;color:#fff;
-    writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);
-    text-shadow:0 2px 10px rgba(0,0,0,.6);opacity:.92}
-
-  #score{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:20px;
-    font-size:64px;font-weight:800;color:#fff;line-height:1;
-    text-shadow:0 3px 18px rgba(0,0,0,.55);font-variant-numeric:tabular-nums;
-    opacity:0;transition:opacity .25s}
-  #score.on{opacity:1}
-  #best{position:absolute;top:calc(env(safe-area-inset-top,0px) + 82px);right:22px;
-    font-size:12px;letter-spacing:.14em;color:#fff;opacity:0;text-shadow:0 2px 8px rgba(0,0,0,.6);
-    transition:opacity .25s}
-  #best.on{opacity:.75}
-
-  /* comic pop — the "HIT!" burst */
-  #pop{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.4);
-    font-size:76px;font-weight:900;font-style:italic;letter-spacing:-.02em;
-    color:var(--pop);-webkit-text-stroke:6px #10240a;paint-order:stroke fill;
-    text-shadow:0 8px 0 rgba(0,0,0,.35);opacity:0;white-space:nowrap}
-  #pop.go{animation:popIn .55s cubic-bezier(.2,1.5,.4,1) forwards}
-  @keyframes popIn{
-    0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-8deg)}
-    35%{opacity:1;transform:translate(-50%,-56%) scale(1.12) rotate(3deg)}
-    70%{opacity:1;transform:translate(-50%,-58%) scale(1) rotate(-1deg)}
-    100%{opacity:0;transform:translate(-50%,-72%) scale(1) rotate(0)}
+  a-scene{position:fixed!important;inset:0;z-index:1}
+  .card{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,560px);max-height:92vh;overflow:auto;
+    background:var(--panel);border:3px solid #fff;border-radius:26px;padding:20px 20px 18px;text-align:center;
+    box-shadow:0 14px 40px rgba(0,0,0,.45);transition:opacity .25s, transform .25s}
+  .card.hide{opacity:0;pointer-events:none;transform:translate(-50%,-46%) scale(.97)}
+  .card img.logo{width:min(70%,300px);display:block;margin:0 auto 6px}
+  .card h2{margin:6px 0 4px;font-size:21px;font-weight:700}
+  .card p{margin:4px 0 12px;font-size:15px;line-height:1.35;opacity:.92}
+  .chars{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+  .chars button{appearance:none;border:3px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);border-radius:16px;padding:6px 2px 4px;cursor:pointer;color:#fff;font-family:inherit;font-weight:600;font-size:min(10.5px,2.35vw);line-height:1.1;letter-spacing:0;white-space:nowrap;overflow:hidden}
+  .chars button img{display:block;height:58px;width:100%;object-fit:contain;margin-bottom:3px;pointer-events:none}
+  .chars button[aria-pressed=true]{border-color:var(--orange);background:rgba(253,170,0,.22)}
+  .btn{appearance:none;display:inline-block;text-decoration:none;border:3px solid #fff;border-radius:999px;padding:13px 26px;font-size:18px;line-height:1;letter-spacing:.03em;color:#fff;cursor:pointer;
+    background:linear-gradient(#ffc23d,#f08a00);box-shadow:0 5px 0 #a35600,0 9px 18px rgba(0,0,0,.3);text-shadow:0 2px 0 rgba(120,50,0,.6)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #a35600}
+  .btn.blue{background:linear-gradient(#5ab4ff,#1f6fe0);box-shadow:0 5px 0 #0d3f8f,0 9px 18px rgba(0,0,0,.3);text-shadow:0 2px 0 rgba(0,30,90,.6)}
+  .btn.small{font-size:15px;padding:10px 18px}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+  input.code{font-family:inherit;font-weight:600;font-size:20px;padding:10px 14px;border-radius:14px;border:2px solid #fff;width:200px;text-align:center;margin:4px 0 10px}
+  small.err{display:block;color:#ffb3a8;min-height:18px}
+  .hud{position:fixed;z-index:5;left:0;right:0;text-align:center;pointer-events:none}
+  #scan{top:50%;transform:translateY(-50%);display:none}
+  #scan.on{display:block}
+  #scan .frame{width:min(78vw,78vh*2);aspect-ratio:2/1;margin:0 auto;border:4px dashed rgba(255,255,255,.8);border-radius:18px;animation:pulse 1.6s ease-in-out infinite}
+  @media (orientation:landscape){ #sideways{display:none!important} }
+  #scan b{display:inline-block;margin-top:12px;background:var(--panel);padding:8px 16px;border-radius:999px;font-size:16px}
+  @keyframes pulse{50%{opacity:.45;transform:scale(.985)}}
+  #say{bottom:calc(9vh + env(safe-area-inset-bottom));opacity:0;transition:opacity .2s}
+  #say.on{opacity:1}
+  #say span{display:inline-block;font-size:clamp(22px,6vw,40px);line-height:1;letter-spacing:.03em;color:#fff;padding:10px 22px;border-radius:999px;
+    background:linear-gradient(#ffc23d,#f08a00);border:3px solid #fff;box-shadow:0 5px 0 #a35600;text-shadow:0 2px 0 rgba(120,50,0,.6)}
+  #say.bounce span{animation:bounce .55s ease-in-out infinite}
+  @keyframes bounce{50%{transform:translateY(-8px) scale(1.04)}}
+  #timer{top:calc(12px + env(safe-area-inset-top));display:none}
+  #timer.on{display:block}
+  #timer span{background:var(--panel);border:2px solid #fff;border-radius:999px;padding:6px 14px;font-weight:700;font-size:18px;line-height:1}
+  #warn{color:#ffd0c8;font-size:14px;min-height:0}
+  #dbg{position:fixed;left:6px;bottom:4px;z-index:20;font-size:10px;opacity:.5;pointer-events:none}
+  .big{font:400 36px/1.05 "KidsRock","Fredoka",sans-serif;margin:6px 0 2px;color:#ffd04d;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+  #over img.hero{height:110px;display:block;margin:0 auto -4px}
+  .card h2{font-family:"KidsRock","Fredoka",sans-serif;font-weight:400;letter-spacing:.02em}
+  #say span,.btn{font-family:"KidsRock","Fredoka",sans-serif;font-weight:400;letter-spacing:.04em}
+  /* phones held sideways: everything on one screen */
+  @media (max-height:520px){
+    .card{padding:12px 16px 12px;border-radius:20px}
+    .card img.logo{width:150px;margin-bottom:0}
+    .card h2{font-size:17px;margin:2px 0}
+    .chars{grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;margin:6px 0 10px}
+    .chars button{padding:4px 1px 3px;font-size:min(8.5px,1.1vw);border-radius:12px}
+    .chars button img{height:40px}
+    .card p{font-size:13px;margin:2px 0 8px}
+    #over img.hero{height:70px}
+    .big{font-size:28px}
+    .btn{padding:11px 22px;font-size:16px}
   }
-
-  /* big encouragement line, e.g. KEEP IT UP! */
-  #cheer{position:absolute;left:50%;top:22%;transform:translate(-50%,0);
-    font-size:34px;font-weight:900;font-style:italic;color:var(--pop);
-    -webkit-text-stroke:4px #10240a;paint-order:stroke fill;white-space:nowrap;
-    opacity:0;transition:opacity .3s}
-  #cheer.on{opacity:1}
-
-  #countdown{position:absolute;inset:0;display:grid;place-items:center;
-    font-size:190px;font-weight:800;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.5);
-    opacity:0;pointer-events:none}
-  #countdown.go{animation:cd .9s ease-out forwards}
-  @keyframes cd{0%{opacity:0;transform:scale(1.6)}25%{opacity:1;transform:scale(1)}
-                80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.9)}}
-
-  #tapplay{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);
-    font-size:30px;font-weight:900;font-style:italic;color:var(--pop);
-    -webkit-text-stroke:4px #10240a;paint-order:stroke fill;
-    opacity:0;transition:opacity .3s;white-space:nowrap}
-  #tapplay.on{opacity:1;animation:bob 1.6s ease-in-out infinite}
-  @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-8px)}}
-
-  /* scanning reticle */
-  #scan{position:fixed;inset:0;z-index:9;display:none;place-items:center;pointer-events:none}
-  #scan.on{display:grid}
-  #scan .box{width:min(76vw,330px);aspect-ratio:7/4;position:relative;animation:breathe 2.4s ease-in-out infinite}
-  #scan .box i{position:absolute;width:32px;height:32px;border:3px solid #fff;opacity:.9}
-  #scan .box i:nth-child(1){top:0;left:0;border-right:0;border-bottom:0}
-  #scan .box i:nth-child(2){top:0;right:0;border-left:0;border-bottom:0}
-  #scan .box i:nth-child(3){bottom:0;left:0;border-right:0;border-top:0}
-  #scan .box i:nth-child(4){bottom:0;right:0;border-left:0;border-top:0}
-  #scanTxt{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);
-    color:#fff;font-size:15px;text-shadow:0 2px 12px rgba(0,0,0,.7);text-align:center;white-space:nowrap}
-  @keyframes breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.04);opacity:1}}
-
-  /* ------------------------------------------------------------- cards */
-  .card{position:fixed;inset:0;z-index:30;background:var(--ground);color:var(--ink);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:32px;gap:18px}
-  .card.hide{display:none}
-  .card h1{font-size:34px;line-height:1.05;margin:0;letter-spacing:-.02em}
-  .card h1 em{font-style:normal;color:var(--ball)}
-  .card p{margin:0;max-width:34ch;font-size:15px;line-height:1.5;color:#55617a}
-  .card button,.card a.btn{pointer-events:auto;border:0;border-radius:999px;background:var(--ink);
-    color:#fff;font-size:17px;font-weight:700;padding:16px 40px;letter-spacing:.02em;
-    text-decoration:none;display:inline-block}
-  .card button:active{transform:scale(.97)}
-  .card small{font-size:11px;letter-spacing:.12em;color:#8a93a8}
-  #warn{background:#fdf0ee;border:1px solid #f0c8c0;color:#a3271a;border-radius:12px;
-    padding:12px 16px;font-size:13px;line-height:1.45;max-width:34ch;display:none}
-  #warn.on{display:block}
-  #code{pointer-events:auto;border:2px solid #c9cfda;border-radius:14px;padding:14px 20px;
-    font-size:18px;text-align:center;width:min(260px,72vw);background:#fff;color:var(--ink)}
-  #code:focus{outline:none;border-color:var(--ink)}
-
-  /* end card, modelled on the reference's score screen */
-  #over{background:var(--ink);color:#fff}
-  #over h1{font-size:38px;font-style:italic;color:var(--pop);
-    -webkit-text-stroke:3px #10240a;paint-order:stroke fill}
-  #over .num{font-size:104px;font-weight:800;line-height:.9;color:var(--accent);
-    font-variant-numeric:tabular-nums}
-  #over .lbl{font-size:13px;letter-spacing:.3em;opacity:.7}
-  #over p{color:#c3cbdb}
-  #over .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-  #over .ghost{background:transparent;border:2px solid rgba(255,255,255,.45)}
-  #newbest{font-size:13px;letter-spacing:.2em;color:var(--accent);font-weight:700;visibility:hidden}
-  #misses{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);left:50%;
-    transform:translateX(-50%);display:none;gap:9px;align-items:center}
-  #misses.on{display:flex}
-  #misses i{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.75);
-    box-shadow:0 2px 8px rgba(0,0,0,.5)}
-  #misses i.spent{background:var(--ball);border-color:var(--ball)}
 </style>
 </head>
 <body>
 
 <div id="lock" class="card hide">
-  <small>PRIVATE PROTOTYPE</small>
-  <h1 id="lockTitle">Work in progress</h1>
-  <p id="lockBody"></p>
-  <input id="code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"
-         placeholder="Passcode" aria-label="Passcode">
-  <button id="unlock">Continue</button>
-  <small id="codeErr" style="color:#a3271a;visibility:hidden">That is not the passcode</small>
+  <img class="logo" src="assets/title.webp" alt="What's Cooking? 2: The Fridge Is Full">
+  <h2>Preview</h2>
+  <p>Enter the passcode you were sent.</p>
+  <form id="codeForm"><input class="code" id="code" autocomplete="off" inputmode="text"><br>
+  <button class="btn small" type="submit">Enter</button></form>
+  <small class="err" id="codeErr"></small>
 </div>
 
 <div id="gate" class="card hide">
-  <small id="kicker">FIREBIRD AFRICA · AR SITE</small>
-  <h1 id="title">Loading…</h1>
-  <p id="intro"></p>
+  <img class="logo" src="assets/title.webp" alt="What's Cooking? 2: The Fridge Is Full">
+  <h2>Pick your character</h2>
+  <div class="chars" id="chars" role="group" aria-label="Characters"></div>
+  <button class="btn" id="start" type="button">Start camera</button>
+  <p style="margin:12px 0 0;font-size:13.5px">Point your phone at the banner. Tap to jump up the shelves and reach the finish.</p>
   <div id="warn"></div>
-  <button id="start">Start camera</button>
-  <small id="build" style="opacity:.5"></small>
-  <small id="dbg" style="opacity:.55"></small>
 </div>
 
 <div id="over" class="card hide">
-  <h1 id="overTitle">Keep It Up!</h1>
-  <div class="lbl" id="overLbl">SCORE</div>
-  <div class="num" id="finalScore">0</div>
-  <div id="newbest">NEW PERSONAL BEST</div>
-  <p id="overBody"></p>
-  <div class="row">
-    <button id="again">Play again</button>
-    <button id="share" class="ghost">Share your score</button>
-  </div>
-  <a id="overCta" class="btn" href="#" target="_blank" rel="noopener" style="background:var(--accent);color:var(--ink)"></a>
+  <img class="hero" id="overHero" alt="">
+  <div class="big">You made it!</div>
+  <p id="overTime"></p>
+  <div class="row"><a class="btn" id="playGame" href="#">PLAY THE FULL GAME</a></div>
+  <div class="row" style="margin-top:12px"><button class="btn blue small" id="again" type="button">Run again</button></div>
 </div>
 
-<div id="scan"><div class="box"><i></i><i></i><i></i><i></i></div><div id="scanTxt">Point at the mural</div></div>
-
-<div id="ui">
-  <div id="brand">FIREBIRD</div>
-  <div id="score">0</div>
-  <div id="best"></div>
-  <div id="pop"></div>
-  <div id="cheer"></div>
-  <div id="tapplay">Tap To Play</div>
-  <div id="misses"></div>
-  <div id="countdown"></div>
-</div>
+<div class="hud" id="scan"><div class="frame"></div><b>Point at the banner</b><br><small id="sideways" style="display:inline-block;margin-top:8px;background:var(--panel);padding:5px 12px;border-radius:999px">Tip: hold your phone sideways for a bigger view</small></div>
+<div class="hud" id="say"><span id="sayText"></span></div>
+<div class="hud" id="timer"><span id="timerText">0.0s</span></div>
+<div id="dbg"></div>
 
 <script>
-(function () {
-  'use strict';
-  const $ = (id) => document.getElementById(id);
-  const track = window.FIREBIRD_TRACK || function (e, d) { console.log('[track]', e, d || {}); };
+(() => {
+'use strict';
+/* ===================== settings ===================== */
+const SET = {
+  passcode: '',                                                  /* '' = no passcode screen */
+  game: 'https://eddyhutchons-lab.github.io/TFIF-Game/?src=billboard',
+  target: 'targets/billboard.mind',
+  version: '4',
+  /* the run course: where the printed shelves are on the billboard (0..1 across, 0..1 down) */
+  course: { aspect: 0.5, startU: 0.075, finishU: 0.875, charH: 0.20, ledges: [
+    { u0: 0.030, u1: 0.360, v: 0.880 }, { u0: 0.360, u1: 0.560, v: 0.740 },
+    { u0: 0.560, u1: 0.760, v: 0.600 }, { u0: 0.760, u1: 0.975, v: 0.460 } ] },
+  speed: 0.16,       /* board widths a second (0.105 felt slow) */
+  jump: 0.56, gravity: 1.45
+};
+const CHAR_ORDER = ['carrot', 'avocado', 'cheese', 'mustard', 'ketchup', 'lasagna', 'mayo', 'milk', 'pickle', 'sriracha'];
+const $ = id => document.getElementById(id);
+const track = window.TFIF_TRACK || ((e, d) => console.log('[track]', e, d || {}));
+const THREE = AFRAME.THREE;
+const C = SET.course, A = C.aspect, CH = C.charH * A;        /* character height in board widths */
+const LED = C.ledges.map(L => ({ ...L, top: (1 - L.v) * A }));
+let META = null, pick = null;
+try { pick = localStorage.getItem('gba-char'); } catch (e) {}
 
-  // Which campaign loads: ?c=name wins, otherwise site.json's defaultCampaign.
-  // Keeping the default in site.json means switching which experience the plain
-  // link shows is a one-word edit, not a code change.
-  const params = new URLSearchParams(location.search);
-  let campaignId = (params.get('c') || '').replace(/[^a-z0-9_-]/gi, '');
+/* ===================== sound ===================== */
+let AC = null;
+const clips = {};
+function audio() {
+  if (AC) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  for (const k of ['fanfare', 'cheer']) fetch('assets/snd/snd-' + k + '.mp3').then(r => r.arrayBuffer()).then(b => AC.decodeAudioData(b)).then(d => { clips[k] = d; }).catch(() => {});
+}
+function play(k, vol = 0.8, at = 0) {
+  if (!AC || !clips[k]) return; const s = AC.createBufferSource(), g = AC.createGain(); g.gain.value = vol;
+  s.buffer = clips[k]; s.connect(g).connect(AC.destination); s.start(AC.currentTime + at);
+}
+function blip(f0 = 420, f1 = 880, dur = 0.16, vol = 0.18, type = 'square') {
+  if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+}
 
-  const ua = navigator.userAgent || '';
-  const inApp = /FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|MicroMessenger/i.test(ua);
-  const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
-  const warn = $('warn');
-  if (!secure) {
-    warn.classList.add('on');
-    warn.textContent = 'This page must be served over HTTPS for the camera to work. Open the hosted https:// link, not a local file.';
-  } else if (inApp) {
-    warn.classList.add('on');
-    warn.textContent = 'You opened this inside another app’s browser, which usually blocks the camera. Tap the ⋯ menu and choose “Open in Safari” or “Open in Chrome”.';
+/* ===================== character picker ===================== */
+function buildPicker() {
+  const box = $('chars');
+  box.innerHTML = CHAR_ORDER.map(k => `<button type="button" data-k="${k}" aria-pressed="${k === pick}"><img src="assets/chars/${k}-select.webp" alt="">${k === 'mustard' ? 'MUSTARD' : META[k].name}</button>`).join('');
+  box.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    pick = b.dataset.k; try { localStorage.setItem('gba-char', pick); } catch (e) {}
+    box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); blip(500, 900, 0.1, 0.12);
+  }));
+  if (!pick || !META[pick]) { pick = 'carrot'; box.querySelector('[data-k=carrot]').setAttribute('aria-pressed', 'true'); }
+}
+
+/* ===================== the scene ===================== */
+let scene, target, hero, heroMat, shadow, confetti = [];
+const tex = {};
+const loader = new THREE.TextureLoader();
+function T(src) {
+  if (!tex[src]) { const t = loader.load(src); if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; tex[src] = t; }
+  return tex[src];
+}
+/* each character is one picture strip: the run frames, then idle, jump and fall, in equal cells */
+function frames(k) {
+  const m = META[k], src = 'assets/chars/' + k + '-sheet.webp?v=' + SET.version, w = m.cw / m.h, n = m.cells;
+  const cell = i => ({ src, w, i, n });
+  return { run: Array.from({ length: m.run }, (_, i) => cell(i)), idle: cell(m.run), jump: cell(m.run + 1), fall: cell(m.run + 2) };
+}
+let F = null;
+function buildScene() {
+  document.body.insertAdjacentHTML('beforeend', `
+    <a-scene mindar-image="imageTargetSrc: ${SET.target}?v=${SET.version}; autoStart: false; uiScanning: no; uiLoading: no; uiError: no; filterMinCF: 0.0001; filterBeta: 0.004; missTolerance: 8; warmupTolerance: 3"
+      color-space="sRGB" renderer="colorManagement: true; alpha: true" vr-mode-ui="enabled: false" xr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-entity id="target" mindar-image-target="targetIndex: 0"></a-entity>
+    </a-scene>`);
+  scene = document.querySelector('a-scene');
+  target = $('target');
+  target.addEventListener('targetFound', onFound);
+  target.addEventListener('targetLost', onLost);
+  const root = new THREE.Group(); target.object3D.add(root);
+  /* the character: a picture on a flat card, standing on its feet */
+  const geo = new THREE.PlaneGeometry(1, 1); geo.translate(0, 0.5, 0);
+  heroMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05, depthWrite: false, side: THREE.DoubleSide });
+  hero = new THREE.Mesh(geo, heroMat); hero.renderOrder = 3; hero.visible = false; root.add(hero);
+  const sg = new THREE.CircleGeometry(0.5, 28);
+  shadow = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color: 0x001030, transparent: true, opacity: 0.32, depthWrite: false }));
+  shadow.renderOrder = 2; shadow.visible = false; root.add(shadow);
+  /* confetti for the finish */
+  const cols = [0xffd04d, 0xfd4d00, 0x2f8cff, 0x2ecc71, 0xff5fa2, 0xffffff];
+  for (let i = 0; i < 70; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.007), new THREE.MeshBasicMaterial({ color: cols[i % cols.length], side: THREE.DoubleSide, transparent: true }));
+    m.visible = false; m.renderOrder = 4; root.add(m); confetti.push({ m, v: new THREE.Vector3(), r: new THREE.Vector3() });
   }
+  scene.addEventListener('arReady', () => { watchRotation(); }, { once: true });
+  scene.addEventListener('arError', () => { $('warn').textContent = 'The camera could not start. Check the browser has permission to use it.'; showGate(); });
+}
+/* board (u across, height up in board widths) -> the tracked picture's space (centre 0,0; width 1) */
+const bx = u => u - 0.5, by = h => h - A / 2;
+function setFrame(fr, flip = false) {
+  const t = T(fr.src);
+  if (heroMat.map !== t) { heroMat.map = t; heroMat.needsUpdate = true; }
+  t.repeat.set(1 / fr.n, 1); t.offset.set(fr.i / fr.n, 0);
+  hero.scale.set(CH * fr.w * (flip ? -1 : 1) * R.sx, CH * R.sy, 1);
+}
 
-  let C, scene, targetEl, ballEl, shadowEl, glowEl;
-  let TEX = [], BANDS = null, lastTex = -1;
-  // Every asset is fetched with ?v=<build>. Without this the phone happily
-  // keeps serving yesterday's ball and yesterday's game from its cache, and
-  // you spend an evening wondering why an upload did nothing.
-  let BUILD = '0';
-
-  /* ------------------------------------------------------------ access gate
-     A doorman, not a vault: it makes a forwarded link useless, but the code
-     lives in the page. Real locking belongs on the host. */
-  function gateAccess() {
-    // site.json carries the build number, so it can never be read from cache —
-    // a stale copy here makes every other ?v= stamp point at the wrong build.
-    return fetch('site.json?t=' + Date.now(), { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
-      .then((s) => new Promise((resolve) => {
-        const code = (s.passcode || '').trim();
-        let already = false;
-        try { already = sessionStorage.getItem('fb_unlocked') === code && code !== ''; } catch (e) {}
-        if (!campaignId) campaignId = (s.defaultCampaign || 'fridge').replace(/[^a-z0-9_-]/gi, '');
-        BUILD = String(s.build || '0');
-        $('build').textContent = 'build ' + BUILD;
-        if (!code || already) { $('gate').classList.remove('hide'); return resolve(); }
-        $('lockTitle').textContent = s.lockTitle || 'Work in progress';
-        $('lockBody').textContent = s.lockBody || 'This is an internal prototype, not a public site.';
-        $('lock').classList.remove('hide');
-        const attempt = () => {
-          if ($('code').value.trim().toLowerCase() === code.toLowerCase()) {
-            try { sessionStorage.setItem('fb_unlocked', code); } catch (e) {}
-            $('lock').classList.add('hide');
-            $('gate').classList.remove('hide');
-            resolve();
-          } else { $('codeErr').style.visibility = 'visible'; $('code').value = ''; }
-        };
-        $('unlock').addEventListener('click', attempt);
-        $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') attempt(); });
-      }));
+/* ===================== the run ===================== */
+const R = { phase: 'idle', x: 0, h: 0, vy: 0, on: 0, t: 0, anim: 0, sx: 1, sy: 1, waitT: 0, started: 0, time: 0, tracked: false, landT: 9 };
+function say(txt, bounce = false) { $('sayText').textContent = txt; $('say').classList.toggle('on', !!txt); $('say').classList.toggle('bounce', bounce); }
+function reset() {
+  Object.assign(R, { phase: 'drop', x: C.startU, h: LED[0].top + 0.16, vy: 0, on: -1, t: 0, sx: 1, sy: 1, waitT: 0, time: 0, landT: 9 });
+  confetti.forEach(c => (c.m.visible = false));
+  hero.visible = true; shadow.visible = true; $('timer').classList.remove('on'); say('');
+}
+function ledgeUnder(x) { for (let i = LED.length - 1; i >= 0; i--) if (x >= LED[i].u0 - 0.004 && x <= LED[i].u1 + 0.004) return i; return 0; }
+function tap() {
+  if (!R.tracked) return;
+  if ((R.phase === 'run' || R.phase === 'wait' || R.phase === 'ready') && R.on >= 0) {
+    if (R.phase === 'ready') go();
+    R.vy = SET.jump; R.on = -1; R.phase = 'run'; blip(380, 980, 0.17); say('');
+    track('jump');
   }
-
-  // Campaigns are looked for beside index.html first, then in campaigns/.
-  // Root-level wins so a new experience can be added by dropping loose files
-  // onto the repo, with no folder navigation and nothing to nest wrongly.
-  const loadCampaign = (id) => fetch(id + '.json?v=' + BUILD)
-    .then((r) => (r.ok ? r : fetch('campaigns/' + id + '.json?v=' + BUILD)));
-
-  gateAccess().then(() => loadCampaign(campaignId)
-    .then((r) => { if (!r.ok) throw new Error('campaign ' + campaignId + ' not found'); return r.json(); })
-    .then(boot)
-    .catch((e) => {
-      $('title').textContent = 'Campaign not found';
-      $('intro').textContent = e.message;
-      $('start').style.display = 'none';
-    }));
-
-  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  function boot(cfg) {
-    C = cfg;
-    track('session_start', { campaign: C.id });
-    const p = C.palette || {}, root = document.documentElement.style;
-    ['ground', 'ink', 'accent', 'ball', 'pop'].forEach((k) => { if (p[k]) root.setProperty('--' + k, p[k]); });
-    $('kicker').textContent = C.kicker || '';
-    $('brand').textContent = C.brand || '';
-    $('title').innerHTML = esc(C.copy.title) + '<br><em>' + esc(C.copy.titleAccent || '') + '</em>';
-    $('intro').textContent = C.copy.intro || '';
-    $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Play';
-    $('overTitle').textContent = C.copy.overTitle || 'Keep It Up!';
-    $('scanTxt').textContent = C.copy.scanning || 'Point at the mural';
-    document.title = C.brand + ' — AR';
-    try { G.best = Number(localStorage.getItem('fb_best_' + campaignId) || 0) || 0; } catch (e) {}
-    buildScene();
-  }
-
-  /* --------------------------------------------------------------- scene */
-  function buildScene() {
-    const props = (C.props || []).map((pr) => {
-      const pos = pr.pos.join(' ');
-      const mat = 'material="color:' + pr.color + '; roughness:.55"';
-      if (pr.type === 'sphere') return `<a-sphere class="prop" position="${pos}" radius="${pr.size[0]}" ${mat}></a-sphere>`;
-      if (pr.type === 'cylinder') return `<a-cylinder class="prop" position="${pos}" radius="${pr.size[0]}" height="${pr.size[1]}" ${mat}></a-cylinder>`;
-      if (pr.type === 'disc') return `<a-cylinder class="prop" position="${pos}" radius="${pr.size[0]}" height="${pr.size[1]}" rotation="90 0 0" ${mat}></a-cylinder>`;
-      return `<a-box class="prop" position="${pos}" width="${pr.size[0]}" height="${pr.size[1]}" depth="${pr.size[2]}" ${mat}></a-box>`;
-    }).join('');
-
-    // A campaign may give one texture, a flat set, or bands. Bands are the
-    // real thing: in the South African draw a ball's colour is fixed by its
-    // number, so the colour is information rather than decoration. Whichever
-    // form is used, every texture is preloaded into <a-assets> — swapping a
-    // ball must never wait on a fetch mid-roll.
-    BANDS = (C.ball && C.ball.bands) || null;
-    TEX = (BANDS && !C.ball.atlas) ? BANDS.map((b) => b[2])
-        : (C.ball && C.ball.textures && C.ball.textures.length) ? C.ball.textures.slice()
-        : (C.ball && C.ball.texture ? [C.ball.texture] : []);
-    const ballMat = TEX.length
-      ? `material="src: #balltex0; roughness:.28; metalness:.06"`
-      : `material="color:${(BANDS && BANDS[0][3]) || C.palette.ball || '#d63c2c'}; roughness:.28; metalness:.06"`;
-
-    document.body.insertAdjacentHTML('beforeend',
-      `<a-scene mindar-image="imageTargetSrc: ${C.target}?v=${BUILD}; autoStart: false; uiScanning: no; uiLoading: no; uiError: no;
-         filterMinCF: 0.0001; filterBeta: 0.005; missTolerance: 6; warmupTolerance: 3"
-        color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true"
-        vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-        <a-assets>${TEX.map((t, i) => `<img id="balltex${i}" src="${t}?v=${BUILD}" crossorigin="anonymous">`).join('')}</a-assets>
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-        <a-entity id="target" mindar-image-target="targetIndex: 0">
-          <a-entity light="type: ambient; intensity: 0.9"></a-entity>
-          <a-entity light="type: directional; intensity: 0.55" position="0.4 0.7 1"></a-entity>
-          <a-plane id="glow" position="0 0 -0.002" width="1.02" height="0.60"
-            material="color: ${C.palette.accent || '#f0ac2c'}; opacity: 0; transparent: true; side: double"></a-plane>
-          <a-entity id="props">${props}</a-entity>
-          <a-ring id="shadow" position="0 -0.5 0.002" radius-inner="0" radius-outer="0.07"
-            material="color:#000; opacity:.2; transparent:true; side:double"></a-ring>
-          <a-sphere id="ball" radius="${(C.ball && C.ball.radius) || 0.13}"
-            position="0 0.3 0.2" segments-width="32" segments-height="24" ${ballMat}></a-sphere>
-        </a-entity>
-      </a-scene>`);
-
-    scene = document.querySelector('a-scene');
-    targetEl = $('target'); ballEl = $('ball'); shadowEl = $('shadow'); glowEl = $('glow');
-    if (C.ball && C.ball.atlas) loadAtlas(C.ball.atlas);
-    targetEl.addEventListener('targetFound', onFound);
-    targetEl.addEventListener('targetLost', onLost);
-    ballEl.object3D.visible = false;
-  }
-
-  /* ---------------------------------------------------------------- game
-     Keepy-uppy, as in the reference: the ball falls under gravity and you tap
-     it to send it back up. Miss it and the run ends. Everything happens in the
-     mural's own coordinate space, so the ball really is in front of the wall. */
-  const G = { phase: 'idle', score: 0, best: 0, last: 0, tracked: false,
-              pos: {x: 0, y: 0.3, z: 0.2}, vel: {x: 0, y: 0, z: 0}, spin: {x: 0, y: 0} };
-
-  const V3 = () => new AFRAME.THREE.Vector3();
-
-  function resetBall() {
-    const ph = C.play;
-    G.pos = { x: 0, y: ph.startY, z: ph.startZ };
-    G.vel = { x: 0, y: 0, z: 0 };
-    G.spin = { x: 0, y: 0 };
-    applyBall();
-  }
-
-  function applyBall() {
-    if (!ballEl) return;
-    ballEl.object3D.position.set(G.pos.x, G.pos.y, G.pos.z);
-    ballEl.object3D.rotation.x = G.spin.x;
-    ballEl.object3D.rotation.y = G.spin.y;
-    // Contact shadow on the wall. Only drawn while the ball is actually over
-    // the artwork — off the edge there is no wall to cast onto, and a grey
-    // disc floating in the sky is the fastest way to break the illusion.
-    const overWall = Math.abs(G.pos.x) < 0.48 && Math.abs(G.pos.y) < 0.27;
-    shadowEl.object3D.visible = overWall && ballEl.object3D.visible;
-    if (overWall) {
-      shadowEl.object3D.position.set(G.pos.x, G.pos.y, 0.003);
-      const near = Math.min(1, Math.max(0, G.pos.z / 0.6));
-      const s = 0.8 + near * 0.5;
-      shadowEl.object3D.scale.set(s, s, s);
-      shadowEl.setAttribute('material', 'opacity', 0.16 * (1 - near * 0.8));
+}
+function go() { R.phase = 'run'; R.started = performance.now(); $('timer').classList.add('on'); say('GO!'); setTimeout(() => { if (R.phase === 'run' && $('sayText').textContent === 'GO!') say(''); }, 700); blip(600, 1200, 0.2, 0.15); }
+function step(dt) {
+  R.anim += dt; R.landT += dt;
+  const halfW = CH * 0.18;
+  if (R.phase === 'drop' || R.phase === 'run' || R.phase === 'wait' || R.phase === 'done') {
+    if (R.phase === 'run' || R.phase === 'wait') {
+      R.time = (performance.now() - R.started) / 1000; $('timerText').textContent = R.time.toFixed(1) + 's';
+      /* run forward unless a step is in the way */
+      let nx = R.x + SET.speed * dt;
+      const i = ledgeUnder(R.x), nxt = LED[i + 1];
+      if (nxt && nx + halfW > nxt.u0 && R.h < nxt.top - 0.002) {
+        nx = Math.min(nx, nxt.u0 - halfW);
+        if (R.on >= 0 && R.phase !== 'wait') { R.phase = 'wait'; R.waitT = 0; }
+      } else if (R.phase === 'wait') R.phase = 'run';
+      if (R.phase === 'wait') { R.waitT += dt; if (R.waitT > 0.35 && $('sayText').textContent !== 'TAP TO JUMP!') say('TAP TO JUMP!', true); }
+      R.x = nx;
+      if (R.x >= C.finishU && R.on === LED.length - 1) finish();
     }
-  }
-
-  function pop(text) {
-    const el = $('pop');
-    el.textContent = text;
-    el.classList.remove('go');
-    void el.offsetWidth;
-    el.classList.add('go');
-  }
-
-  function cheer(text) {
-    const el = $('cheer');
-    el.textContent = text;
-    el.classList.add('on');
-    clearTimeout(cheer._t);
-    cheer._t = setTimeout(() => el.classList.remove('on'), 1800);
-  }
-
-  function setScore(n) {
-    G.score = n;
-    $('score').textContent = n;
-    const cues = C.copy.cheers || {};
-    if (cues[n]) cheer(cues[n]);
-  }
-
-  /* Hit testing: project the ball to screen space and compare with the tap.
-     Cheaper and far more forgiving than a raycast, which matters when someone
-     is holding a phone at arm's length in the sun. */
-  function ballScreen() {
-    const cam = scene.camera;
-    const v = V3();
-    ballEl.object3D.getWorldPosition(v);
-    const world = v.clone();
-    v.project(cam);
-    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
-    // radius in pixels: project a point one radius to the side
-    const camPos = V3();
-    cam.getWorldPosition(camPos);
-    const dist = camPos.distanceTo(world);
-    const r = (C.ball.radius / Math.max(0.15, dist)) * (window.innerHeight / (2 * Math.tan(
-      (cam.fov || 60) * Math.PI / 360)));
-    return { x, y, r, behind: v.z > 1 };
-  }
-
-  /* ============================================================== DRAW MODE
-     "picker": the wall draws numbers for you. Tap, the ball flies into the
-     drum painted on the mural, a numbered ball rolls out of the chute and
-     drops into the next empty slot. Six taps, six numbers, and the player
-     walks away with something they keep — which is what the rally never gave
-     them. Positions come from the campaign file so they match the artwork. */
-  const DRAW = { picked: [], ball: null, discs: [], lost: 0, speed: 1, paused: false };
-
-  function rand(max) {
-    if (window.crypto && crypto.getRandomValues) {
-      const a = new Uint32Array(1);
-      const limit = Math.floor(0xffffffff / max) * max;
-      do { crypto.getRandomValues(a); } while (a[0] >= limit);
-      return (a[0] % max) + 1;
-    }
-    return Math.floor(Math.random() * max) + 1;
-  }
-
-  function drawNumber() {
-    const max = C.draw.maxNumber;
-    let n;
-    do { n = rand(max); } while (DRAW.picked.includes(n));
-    return n;
-  }
-
-  // Numbered disc, drawn to a canvas so there are no font files to ship.
-  function makeDisc(n) {
-    const S = 256, cv = document.createElement('canvas');
-    cv.width = cv.height = S;
-    const g = cv.getContext('2d');
-    g.clearRect(0, 0, S, S);
-    g.fillStyle = C.draw.discFill || '#f7f2e8';
-    g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 8, 0, 6.284); g.fill();
-    // The ring keeps the colour of the ball it came from, so a filled port
-    // still reads as the orange one, the blue one — the band survives the catch.
-    const bi = bandOf(n);
-    g.lineWidth = 12;
-    g.strokeStyle = (bi >= 0 && BANDS[bi][3]) || C.draw.discRing || '#e8b230';
-    g.stroke();
-    const grad = g.createRadialGradient(S * 0.36, S * 0.3, 8, S * 0.5, S * 0.5, S * 0.6);
-    grad.addColorStop(0, 'rgba(255,255,255,.85)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = grad; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 14, 0, 6.284); g.fill();
-    g.fillStyle = C.draw.discInk || '#26143a';
-    g.font = 'bold ' + (n > 9 ? 112 : 128) + 'px -apple-system, Helvetica, Arial, sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(String(n), S / 2, S / 2 + 6);
-    const THREE = AFRAME.THREE;
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
-    const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(C.draw.discRadius, 40),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
-    );
-    targetEl.object3D.add(mesh);
-    return mesh;
-  }
-
-  function say(text) {
-    const el = $('cheer');
-    el.textContent = text; el.classList.add('on');
-    clearTimeout(say._t); say._t = setTimeout(() => el.classList.remove('on'), 1300);
-  }
-
-  /* ---------------------------------------------------------- ramp round
-     A ball rolls down the slide painted on the wall and falls off the end.
-     Catch it before it drops and its number is yours; let it go and the
-     number is lost and you wait for the next one. Each ball rolls a little
-     faster, so the pressure builds across the six. */
-  /* ------------------------------------------------------------ ball atlas
-     One image holding every band's map, stacked top to bottom, sliced once
-     here. Cheaper to upload and to serve than eight files, and it means a
-     ball never changes colour a frame late waiting on a fetch.
-
-     If the sheet fails to load the ball keeps the flat band colour it was
-     built with, so the round still plays — just without the printed window. */
-  const ATLAS = [];
-  function loadAtlas(src) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const THREE = AFRAME.THREE, rows = BANDS.length, h = img.height / rows;
-      for (let i = 0; i < rows; i++) {
-        const cv = document.createElement('canvas');
-        cv.width = img.width; cv.height = h;
-        cv.getContext('2d').drawImage(img, 0, i * h, img.width, h, 0, 0, img.width, h);
-        const t = new THREE.CanvasTexture(cv);
-        t.colorSpace = THREE.SRGBColorSpace || t.colorSpace;
-        t.anisotropy = 4;
-        ATLAS[i] = t;
+    /* falling and landing */
+    if (R.on < 0) {
+      const prevH = R.h; R.vy -= SET.gravity * dt; R.h += R.vy * dt;
+      if (R.vy < 0) {
+        const i = ledgeUnder(R.x), L = LED[i];
+        if (prevH >= L.top - 0.0001 && R.h <= L.top) { R.h = L.top; R.vy = 0; R.on = i; R.landT = 0; blip(220, 140, 0.08, 0.1, 'triangle');
+          if (R.phase === 'drop') { R.phase = 'ready'; R.t = 0; } }
+        else if (R.h < L.top) { R.h = L.top; R.vy = 0; R.on = i; R.landT = 0; }
       }
-      if (DRAW.ball) setBallTexture(DRAW.ball.n);
-    };
-    img.onerror = () => track('atlas_failed', { campaign: C.id });
-    img.src = src + '?v=' + BUILD;
+    } else if (LED[R.on] && (R.x > LED[R.on].u1 + 0.004)) { R.on = -1; }
   }
-
-  /* Which band a number belongs to. Bands are [low, high, texture, hex] and
-     the last one is open-ended, so extending the game's range never leaves a
-     number without a colour. */
-  function bandOf(n) {
-    if (!BANDS) return -1;
-    for (let i = 0; i < BANDS.length; i++) if (n >= BANDS[i][0] && n <= BANDS[i][1]) return i;
-    return BANDS.length - 1;
+  if (R.phase === 'ready') { R.t += dt; if (R.t > 0.35 && R.t - dt <= 0.35) say('TAP TO JUMP!', true); if (R.t > 1.4) { go(); say('TAP TO JUMP!', true); setTimeout(() => { if ($('sayText').textContent === 'TAP TO JUMP!' && R.phase === 'run') say(''); }, 1400); } }
+  if (R.phase === 'done') { R.t += dt; if (R.on >= 0 && R.t < 2.6 && R.anim % 0.6 < dt) { R.vy = 0.32; R.on = -1; } }
+  /* squash when landing, a little stretch in the air */
+  const sq = R.landT < 0.3 ? 0.18 * Math.exp(-R.landT * 12) * Math.cos(R.landT * 30) : 0;
+  R.sx = 1 + sq; R.sy = 1 - sq + (R.on < 0 ? Math.min(0.08, Math.abs(R.vy) * 0.1) : 0);
+  let fr;
+  if (R.on < 0) fr = R.vy > 0 ? F.jump : F.fall;
+  else if (R.phase === 'run') fr = F.run[Math.floor(R.anim * 18) % F.run.length];
+  else fr = F.idle;
+  setFrame(fr);
+  if (R.on >= 0 && R.phase !== 'run') hero.scale.y *= 1 + Math.sin(R.anim * 5) * 0.015;
+  hero.position.set(bx(R.x), by(R.h), 0.004);
+  const L = LED[ledgeUnder(R.x)], air = Math.max(0, R.h - L.top);
+  shadow.position.set(bx(R.x), by(L.top) + 0.002, 0.003);
+  const s = Math.max(0.3, 1 - air * 6); shadow.scale.set(CH * 0.55 * s, CH * 0.07 * s, 1);
+  /* confetti */
+  for (const c of confetti) if (c.m.visible) {
+    c.v.y -= 0.35 * dt; c.v.multiplyScalar(1 - 0.9 * dt);
+    c.m.position.addScaledVector(c.v, dt); c.m.rotation.x += c.r.x * dt; c.m.rotation.y += c.r.y * dt; c.m.rotation.z += c.r.z * dt;
+    if (c.m.position.y < -A / 2 - 0.05) c.m.visible = false;
   }
+}
+function finish() {
+  R.phase = 'done'; R.t = 0; say('');
+  const t = R.time; track('finish', { char: pick, secs: +t.toFixed(1) });
+  play('fanfare', 0.75); play('cheer', 0.6, 0.3);
+  const fx = bx(C.finishU), fy = by(LED[LED.length - 1].top + 0.13);
+  confetti.forEach((c, i) => { c.m.visible = true; c.m.position.set(fx + (Math.random() - 0.5) * 0.04, fy, 0.02 + Math.random() * 0.02);
+    const a = Math.random() * Math.PI * 2, sp = 0.18 + Math.random() * 0.28; c.v.set(Math.cos(a) * sp, Math.abs(Math.sin(a)) * sp + 0.12, (Math.random() - 0.2) * 0.25);
+    c.r.set(Math.random() * 9, Math.random() * 9, Math.random() * 9); });
+  setTimeout(() => {
+    $('overHero').src = 'assets/chars/' + pick + '-select.webp';
+    $('overTime').textContent = `${META[pick].name} reached the finish in ${t.toFixed(1)} seconds. Now take on the full game: more stages, more stars, and the rankings.`;
+    $('over').classList.remove('hide'); $('timer').classList.remove('on');
+  }, 1700);
+}
 
-  /* Banded: the number decides the colour, as it does in the real draw.
-     Unbanded: any colour but the one just used, so a fresh ball reads as
-     fresh rather than as the previous one having never left. */
-  function setBallTexture(n) {
-    let i;
-    if (BANDS) {
-      i = bandOf(n);
-    } else {
-      if (TEX.length < 2) return;
-      i = lastTex;
-      while (i === lastTex) i = Math.floor(Math.random() * TEX.length);
-    }
-    lastTex = i;
-    if (ATLAS[i]) {
-      const m = ballEl.getObject3D('mesh');
-      if (m) { m.material.map = ATLAS[i]; m.material.color.setHex(0xffffff); m.material.needsUpdate = true; }
-      return;
-    }
-    if (BANDS && C.ball.atlas) {          // sheet not in yet — hold the band colour
-      const m = ballEl.getObject3D('mesh');
-      if (m && BANDS[i][3]) { m.material.color.set(BANDS[i][3]); m.material.needsUpdate = true; }
-      return;
-    }
-    if (TEX.length) ballEl.setAttribute('material', 'src', '#balltex' + i);
-  }
+/* ===================== tracking ===================== */
+function onFound() {
+  R.tracked = true; $('scan').classList.remove('on'); track('target_found');
+  if (R.phase === 'idle') reset();
+  else if (R.phase === 'paused') { R.phase = R.was; R.started = performance.now() - R.time * 1000; say(''); }
+}
+function onLost() {
+  R.tracked = false; track('target_lost');
+  if (R.phase === 'done' || R.phase === 'idle') return;
+  if (R.phase !== 'paused') { R.was = R.phase; R.phase = 'paused'; }
+  $('scan').classList.add('on'); say('');
+}
+let last = 0;
+function loop(t) {
+  const dt = Math.min(0.05, (t - (last || t)) / 1000); last = t;
+  if (F && R.phase !== 'idle' && R.phase !== 'paused') step(dt);
+  requestAnimationFrame(loop);
+}
 
-  function spawnBall(delay) {
-    const n = drawNumber();
-    DRAW.ball = { stage: 'wait', t: 0, wait: delay == null ? 0.5 : delay,
-                  n: n, vy: 0, x: 0, y: 0 };
-    ballEl.object3D.visible = false;
-    setBallTexture(n);
-  }
-
-  /* The rail is a quadratic bezier when the campaign supplies a control point,
-     so the ball can follow a painted curve rather than only a straight ramp.
-     Omit rampCtrl and it degrades to the straight line it used to be. */
-  function rampPoint(t) {
-    const a = C.draw.rampStart, b = C.draw.rampEnd, c = C.draw.rampCtrl;
-    if (!c) return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t };
-    const m = 1 - t;
-    return { x: m * m * a[0] + 2 * m * t * c[0] + t * t * b[0],
-             y: m * m * a[1] + 2 * m * t * c[1] + t * t * b[1] };
-  }
-
-  function stepDraw(dt) {
-    const b = DRAW.ball, cfg = C.draw;
-    if (!b) return;
-
-    if (b.stage === 'wait') {
-      b.wait -= dt;
-      if (b.wait <= 0) {
-        b.stage = 'roll'; b.t = 0;
-        ballEl.object3D.visible = true;
-        say(C.copy.incoming || 'HERE IT COMES');
-      }
-      return;
-    }
-
-    if (b.stage === 'roll') {
-      // gentle acceleration down the slide, and faster with every ball drawn
-      const base = cfg.rollSecs / DRAW.speed;
-      b.t += (dt / base) * (0.75 + b.t * 0.5);
-      const p = rampPoint(Math.min(1, b.t));
-      b.x = p.x; b.y = p.y;
-      G.pos.x = p.x; G.pos.y = p.y; G.pos.z = cfg.rollZ;
-      // Spin mostly about Y. The number windows sit on the ball's equator, so
-      // a Y-dominant spin parades them across the front once a quarter turn,
-      // where an even tumble hides them edge-on most of the way down.
-      G.spin.y += dt * 6.5; G.spin.x -= dt * 1.1;
-      applyBall();
-      if (b.t >= 1) { b.stage = 'fall'; b.vy = -0.05; }
-      return;
-    }
-
-    if (b.stage === 'fall') {
-      b.vy -= cfg.fallGravity * dt;
-      b.y += b.vy * dt;
-      b.x += cfg.fallDrift * dt;
-      G.pos.x = b.x; G.pos.y = b.y; G.pos.z = cfg.rollZ;
-      G.spin.x -= dt * 9;
-      applyBall();
-      if (b.y < cfg.missY) {
-        DRAW.lost += 1;
-        pop(C.copy.miss || 'MISSED!');
-        renderMisses();
-        track('number_missed', { campaign: C.id, lost: DRAW.lost });
-        ballEl.object3D.visible = false;
-        const max = cfg.maxMisses || 3;
-        if (DRAW.lost >= max) {
-          say(C.copy.outOfBalls || 'OUT OF BALLS');
-          DRAW.ball = null;
-          setTimeout(finishDraw, 900);
-          return;
-        }
-        say(C.copy.missHint || 'that number is gone');
-        spawnBall(cfg.gapSecs);
-      }
-      return;
-    }
-
-    if (b.stage === 'toSlot') {
-      b.t += dt / cfg.toSlotSecs;
-      const e = Math.min(1, b.t), ee = e * e * (3 - 2 * e);
-      b.mesh.position.set(
-        b.fromX + (b.slot[0] - b.fromX) * ee,
-        b.fromY + (b.slot[1] - b.fromY) * ee - Math.sin(Math.PI * ee) * 0.05,
-        0.06 - ee * 0.05
-      );
-      const sc = 1.3 - 0.3 * ee;
-      b.mesh.scale.set(sc, sc, sc);
-      if (e >= 1) {
-        DRAW.discs.push(b.mesh);
-        if (DRAW.picked.length >= cfg.count) { DRAW.ball = null; return finishDraw(); }
-        DRAW.speed = Math.min(cfg.maxSpeed || 2.2, DRAW.speed + (cfg.speedStep || 0.16));
-        spawnBall(cfg.gapSecs);
-      }
-    }
-  }
-
-  function renderMisses() {
-    const max = (C.draw.maxMisses || 3);
-    const el = $('misses');
-    el.classList.add('on');
-    el.innerHTML = '';
-    for (let i = 0; i < max; i++) {
-      const dot = document.createElement('i');
-      if (i < DRAW.lost) dot.className = 'spent';
-      el.appendChild(dot);
-    }
-  }
-
-  function catchBall() {
-    const b = DRAW.ball, cfg = C.draw;
-    if (!b || (b.stage !== 'roll' && b.stage !== 'fall')) return false;
-    const s = ballScreen();
-    if (s.behind) return false;
-    const dx = lastTap.x - s.x, dy = lastTap.y - s.y;
-    const forgive = Math.max(52, s.r * (cfg.tapForgiveness || 1.8));
-    if (dx * dx + dy * dy > forgive * forgive) return false;
-
-    DRAW.picked.push(b.n);
-    $('score').textContent = DRAW.picked.length;
-    pop(String(b.n));
-    say(C.copy.caught || 'CAUGHT IT');
-    track('number_caught', { campaign: C.id, n: b.n, index: DRAW.picked.length });
-    glowEl.setAttribute('material', 'opacity', 0.24);
-    setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 240);
-    ballEl.object3D.visible = false;
-    b.mesh = makeDisc(b.n);
-    b.mesh.position.set(G.pos.x, G.pos.y, 0.06);
-    b.fromX = G.pos.x; b.fromY = G.pos.y;
-    b.slot = cfg.slots[DRAW.picked.length - 1];
-    b.stage = 'toSlot'; b.t = 0;
-    return true;
-  }
-
-  function finishDraw() {
-    G.phase = 'over';
-    ballEl.object3D.visible = false;
-    $('score').classList.remove('on');
-    $('best').classList.remove('on');
-    const sorted = DRAW.picked.slice().sort((a, b) => a - b);
-    $('overTitle').textContent = C.copy.overTitle || 'Your numbers';
-    $('overLbl').textContent = C.copy.overLabel || 'FOR THE NEXT DRAW';
-    $('share').textContent = C.copy.shareButton || 'Share your numbers';
-    $('finalScore').textContent = sorted.length ? sorted.join('  ') : '—';
-    $('misses').classList.remove('on');
-    $('finalScore').style.fontSize = 'clamp(28px, 9vw, 46px)';
-    $('newbest').style.visibility = 'hidden';
-    const ranOut = DRAW.lost >= (C.draw.maxMisses || 3) && DRAW.picked.length < C.draw.count;
-    const missNote = ranOut
-      ? ` You dropped ${DRAW.lost} and ran out before the set was full.`
-      : DRAW.lost
-        ? ` You let ${DRAW.lost} ball${DRAW.lost > 1 ? 's' : ''} drop.`
-        : ' Not a single one dropped.';
-    $('overBody').textContent = ((C.reward && C.reward.body) || '') + missNote;
-    const cta = $('overCta');
-    if (C.reward && C.reward.url) {
-      cta.textContent = C.reward.cta || 'Continue';
-      cta.href = C.reward.url;
-      cta.style.display = '';
-    } else { cta.style.display = 'none'; }
-    $('over').classList.remove('hide');
-    track('draw_complete', { campaign: C.id, numbers: sorted, lost: DRAW.lost });
-  }
-
-  function resetDraw() {
-    DRAW.discs.forEach((m) => targetEl.object3D.remove(m));
-    DRAW.discs = [];
-    DRAW.picked = [];
-    DRAW.ball = null;
-    DRAW.lost = 0;
-    DRAW.speed = 1;
-    DRAW.paused = false;
-    $('finalScore').style.fontSize = '';
-    $('score').textContent = '0';
-    $('misses').classList.remove('on');
-  }
-
-  const lastTap = { x: 0, y: 0 };
-
-  /* Agitator balls inside the drum painted on the wall. They tumble whenever
-     the wall is in view, so the mural looks alive before anyone taps, and the
-     ball that rolls out has somewhere to have come from. */
-  const AGIT = [];
-  function buildAgitator() {
-    const cfg = C.draw, THREE = AFRAME.THREE;
-    if (!cfg.drum || AGIT.length) return;
-    const n = cfg.drumBalls || 6;
-    for (let i = 0; i < n; i++) {
-      // Tumbling balls in the machine colours, so the one that rolls out is
-      // recognisably one of these rather than arriving from nowhere.
-      const pal = cfg.drumColors || (BANDS && BANDS.map((b) => b[3]).filter(Boolean))
-                  || ['#d02a28', '#1c60ba', '#1a8e4e', '#f6c216', '#7c3e9e', '#f2eee6'];
-      const m = new THREE.Mesh(
-        new THREE.SphereGeometry(cfg.drumBallRadius || 0.022, 18, 14),
-        new THREE.MeshStandardMaterial({ color: new THREE.Color(pal[i % pal.length]),
-                                         roughness: 0.32, metalness: 0.05 })
-      );
-      m.userData.a = (i / n) * Math.PI * 2;
-      m.userData.r = (cfg.drumRadius || 0.075) * (0.35 + 0.6 * ((i * 7 % 5) / 5));
-      m.userData.sp = 0.7 + (i % 3) * 0.35;
-      targetEl.object3D.add(m);
-      AGIT.push(m);
-    }
-  }
-  function stepAgitator(now) {
-    if (!AGIT.length) return;
-    const c = C.draw.drum;
-    for (const m of AGIT) {
-      const u = m.userData;
-      u.a += 0.016 * u.sp;
-      m.position.set(c[0] + Math.cos(u.a) * u.r,
-                     c[1] + Math.sin(u.a * 1.3) * u.r * 0.8,
-                     0.03 + Math.sin(u.a * 0.7) * 0.012);
-      m.rotation.y = u.a * 2;
-    }
-  }
-
-  function onTap(ev) {
-    if (ev.target.closest && ev.target.closest('.card')) return;
-
-    if (C.mode === 'picker') {
-      if (!G.tracked) return;
-      const t = (ev.touches && ev.touches[0]) || ev;
-      lastTap.x = t.clientX; lastTap.y = t.clientY;
-      if (G.phase === 'ready' || G.phase === 'idle') {
-        G.phase = 'draw';
-        $('score').classList.add('on');
-        $('tapplay').classList.remove('on');
-        DRAW.speed = 1;
-        renderMisses();
-        spawnBall(0.6);
-        return;
-      }
-      if (G.phase === 'draw') catchBall();
-      return;
-    }
-
-    if (G.phase === 'ready') return startRound();
-    if (G.phase !== 'play') return;
-
-    const t = (ev.touches && ev.touches[0]) || ev;
-    const s = ballScreen();
-    if (s.behind) return;
-    const dx = t.clientX - s.x, dy = t.clientY - s.y;
-    const forgiveness = Math.max(46, s.r * (C.play.tapForgiveness || 1.5));
-    if (dx * dx + dy * dy > forgiveness * forgiveness) return;   // swing and a miss
-
-    const ph = C.play;
-    G.vel.y = ph.hitImpulse;
-    // where you hit it decides where it goes — off-centre taps send it sideways
-    G.vel.x = Math.max(-ph.maxSide, Math.min(ph.maxSide, -dx / forgiveness * ph.sideGain + G.vel.x * 0.2));
-    G.vel.z = Math.max(-0.25, Math.min(ph.maxDepth, G.vel.z * 0.3 + (Math.random() - 0.35) * ph.depthGain));
-    G.spin.y += 0.9; G.spin.x -= 0.6;
-
-    setScore(G.score + 1);
-    pop(C.copy.hit || 'HIT!');
-    track('rally_score', { campaign: C.id, score: G.score });
-    popProps();
-  }
-
-  function popProps() {
-    document.querySelectorAll('.prop').forEach((p, i) => {
-      const o = p.object3D;
-      if (o.userData.baseZ === undefined) o.userData.baseZ = o.position.z;
-      o.position.z = o.userData.baseZ + 0.06;
-      setTimeout(() => { o.position.z = o.userData.baseZ; }, 200 + i * 40);
-    });
-  }
-
-  function startRound() {
-    G.phase = 'count';
-    $('tapplay').classList.remove('on');
-    setScore(0);
-    resetBall();
-    ballEl.object3D.visible = false;
-    const steps = ['3', '2', '1'];
-    let i = 0;
-    const cd = $('countdown');
-    const tick = () => {
-      if (!G.tracked) { G.phase = 'ready'; cd.classList.remove('go'); return; }
-      if (i >= steps.length) {
-        cd.classList.remove('go');
-        cd.textContent = '';
-        G.phase = 'play';
-        ballEl.object3D.visible = true;
-        $('score').classList.add('on');
-        $('best').classList.add('on');
-        $('best').textContent = 'BEST ' + G.best;
-        cheer(C.copy.go || 'GO!');
-        return;
-      }
-      cd.textContent = steps[i++];
-      cd.classList.remove('go'); void cd.offsetWidth; cd.classList.add('go');
-      setTimeout(tick, 750);
-    };
-    tick();
-  }
-
-  function endRound() {
-    G.phase = 'over';
-    ballEl.object3D.visible = false;
-    $('score').classList.remove('on');
-    $('best').classList.remove('on');
-    const isBest = G.score > G.best;
-    if (isBest) {
-      G.best = G.score;
-      try { localStorage.setItem('fb_best_' + campaignId, String(G.best)); } catch (e) {}
-    }
-    $('finalScore').textContent = G.score;
-    $('newbest').style.visibility = isBest && G.score > 0 ? 'visible' : 'hidden';
-    const r = C.reward || {};
-    $('overBody').textContent = G.score >= (C.play.goal || 8)
-      ? (r.body || '') : (C.copy.tryAgain || 'Keep it up — the mural is waiting.');
-    const cta = $('overCta');
-    if (G.score >= (C.play.goal || 8) && r.url) {
-      cta.textContent = r.cta || 'Continue';
-      cta.href = r.url;
-      cta.style.display = '';
-    } else {
-      cta.style.display = 'none';
-    }
-    $('over').classList.remove('hide');
-    track('round_end', { campaign: C.id, score: G.score, best: G.best });
-    if (G.score >= (C.play.goal || 8)) track('goal_reached', { campaign: C.id, score: G.score });
-  }
-
-  $('again').addEventListener('click', () => {
-    $('over').classList.add('hide');
-    if (C.mode === 'picker') {
-      resetDraw();
-      G.phase = 'ready';
-      ballEl.object3D.visible = false;
-      $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Start';
-      $('tapplay').classList.add('on');
-      return;
-    }
-    if (G.tracked) startRound(); else { G.phase = 'ready'; $('tapplay').classList.add('on'); }
-  });
-
-  $('share').addEventListener('click', async () => {
-    const text = C.mode === 'picker'
-      ? `${C.copy.shareText || 'The wall picked my numbers:'} ${DRAW.picked.slice().sort((a,b)=>a-b).join(', ')} — ${C.brand}.`
-      : `${C.copy.shareText || 'I scored'} ${G.score} on the ${C.brand} AR mural.`;
-    track('share_click', { campaign: C.id, score: G.score });
+/* Turning the phone: the camera picture swaps between tall and wide, so the tracker is rebuilt for the new shape */
+function watchRotation() {
+  const sys = scene.systems['mindar-image-system'];
+  const v = sys.video; if (!v) return;
+  let wide = v.videoWidth > v.videoHeight, busy = false, again = false;
+  const check = async () => {
+    const w = v.videoWidth, h = v.videoHeight;
+    if (!w || !h || !sys.controller) return;
+    if ((w > h) === wide) { try { sys._resize(); } catch (e) {} return; }
+    if (busy) { again = true; return; }
+    busy = true; wide = w > h;
     try {
-      if (navigator.share) await navigator.share({ title: C.brand, text, url: location.href });
-      else { await navigator.clipboard.writeText(text + ' ' + location.href); $('share').textContent = 'Copied!'; }
-    } catch (e) { /* user dismissed */ }
-  });
+      sys.controller.stopProcessVideo();
+      await new Promise(r => setTimeout(r, 350));
+      try { sys.controller.dispose(); } catch (e) {}
+      v.setAttribute('width', w); v.setAttribute('height', h);
+      await sys._startAR();
+      track('rotated', { wide });
+    } catch (e) { $('dbg').textContent = 'Turn: ' + String(e && e.message || e).slice(0, 100); }
+    busy = false; if (again) { again = false; check(); }
+  };
+  v.addEventListener('resize', check);
+  addEventListener('orientationchange', () => setTimeout(check, 400));
+  addEventListener('resize', () => setTimeout(check, 250));
+  setInterval(check, 1000);
+}
 
-  $('overCta').addEventListener('click', () => track('cta_click', { campaign: C.id }));
+/* ===================== screens ===================== */
+function showGate() { $('gate').classList.remove('hide'); }
+$('start').addEventListener('click', () => {
+  audio(); F = frames(pick); T(F.idle.src);
+  const begin = () => {
+    try { scene.systems['mindar-image-system'].start(); $('gate').classList.add('hide'); $('scan').classList.add('on'); track('camera_start', { char: pick }); }
+    catch (err) { $('warn').textContent = 'Could not start the camera: ' + (err && err.message ? err.message : err); }
+  };
+  if (scene.hasLoaded) begin(); else scene.addEventListener('loaded', begin, { once: true });
+});
+$('again').addEventListener('click', e => { e.stopPropagation(); $('over').classList.add('hide'); if (R.tracked) reset(); else { R.phase = 'idle'; $('scan').classList.add('on'); } });
+$('playGame').addEventListener('click', () => track('play_full_game', { char: pick }));
+$('playGame').href = SET.game + '&char=' + encodeURIComponent(pick || '');
+window.addEventListener('pointerdown', e => { if (e.target.closest('.card')) return; tap(); }, { passive: true });
+window.addEventListener('keydown', e => { if (e.code === 'Space') tap(); });
+window.addEventListener('error', e => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
 
-  /* ---------------------------------------------------------------- loop */
-  function loop(now) {
-    requestAnimationFrame(loop);
-    const dt = Math.min(0.04, (now - (G.last || now)) / 1000);
-    G.last = now;
-
-    if (C.mode === 'picker') {
-      // Only advance the draw while the wall is in view. Otherwise a ball
-      // keeps rolling — and can be "missed" — while the phone is pointed at
-      // the pavement, which is not the player's fault.
-      if (G.tracked) stepAgitator(now);
-      if (G.tracked && G.phase === 'draw' && !DRAW.paused) stepDraw(dt);
-    } else if (G.phase === 'play') {
-      const ph = C.play;
-      G.vel.y -= ph.gravity * dt;
-      G.pos.x += G.vel.x * dt;
-      G.pos.y += G.vel.y * dt;
-      G.pos.z += G.vel.z * dt;
-
-      // keep it roughly in front of the wall
-      if (G.pos.x < -ph.boundX) { G.pos.x = -ph.boundX; G.vel.x *= -0.7; }
-      if (G.pos.x > ph.boundX) { G.pos.x = ph.boundX; G.vel.x *= -0.7; }
-      if (G.pos.z < ph.minZ) { G.pos.z = ph.minZ; G.vel.z *= -0.6; }
-      if (G.pos.z > ph.maxZ) { G.pos.z = ph.maxZ; G.vel.z *= -0.6; }
-
-      G.spin.x += G.vel.y * dt * 2.5;
-      G.spin.y += G.vel.x * dt * 3.5;
-      applyBall();
-
-      if (G.pos.y < ph.floorY) { pop(C.copy.miss || 'MISSED!'); endRound(); }
-    }
-
-    const b = now / 620;
-    document.querySelectorAll('.prop').forEach((p, i) => {
-      const o = p.object3D;
-      if (o.userData.baseY === undefined) o.userData.baseY = o.position.y;
-      o.position.y = o.userData.baseY + Math.sin(b + i * 1.3) * 0.012;
-      o.rotation.y = Math.sin(b * 0.6 + i) * 0.4;
-    });
-  }
-
-  /* -------------------------------------------------------------- tracking */
-  function onFound() {
-    G.tracked = true;
-    $('scan').classList.remove('on');
-    glowEl.setAttribute('material', 'opacity', 0.3);
-    setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 500);
-    popProps();
-    track('target_found', { campaign: C.id });
-    if (C.mode === 'picker' && DRAW.paused) {
-      DRAW.paused = false;
-      say(C.copy.resumed || 'BACK ON');
-      spawnBall(C.draw.gapSecs || 0.9);
-      return;
-    }
-    if (G.phase === 'idle' || G.phase === 'lost') {
-      G.phase = 'ready';
-      if (C.mode === 'picker') {
-        buildAgitator();
-        ballEl.object3D.visible = false;
-        $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Start';
-      }
-      $('tapplay').classList.add('on');
-    }
-  }
-
-  function onLost() {
-    G.tracked = false;
-    track('target_lost', { campaign: C.id });
-    if (G.phase === 'over') return;
-    if (C.mode === 'picker' && G.phase === 'draw') {
-      DRAW.paused = true;
-      // a number caught in the last instant would otherwise be stranded
-      // mid-flight; snap it home so the slot is filled when you look back
-      const b = DRAW.ball;
-      if (b && b.stage === 'toSlot' && b.mesh) {
-        b.mesh.position.set(b.slot[0], b.slot[1], 0.01);
-        b.mesh.scale.set(1, 1, 1);
-        DRAW.discs.push(b.mesh);
-        DRAW.ball = null;
-      }
-      if (ballEl) ballEl.object3D.visible = false;
-      $('scan').classList.add('on');
-      $('tapplay').classList.remove('on');
-      return;                       // keep phase, picked numbers and discs
-    }
-    G.phase = 'lost';
-    $('scan').classList.add('on');
-    $('tapplay').classList.remove('on');
-    $('score').classList.remove('on');
-    $('best').classList.remove('on');
-    if (ballEl) ballEl.object3D.visible = false;
-  }
-
-  window.addEventListener('pointerdown', onTap, { passive: true });
-
-  $('start').addEventListener('click', () => {
-    const begin = () => {
-      try {
-        scene.addEventListener('arReady', watchRotation, { once: true });
-        scene.systems['mindar-image-system'].start();
-        $('gate').classList.add('hide');
-        $('scan').classList.add('on');
-        resetBall();
-        requestAnimationFrame(loop);
-        track('camera_start', { campaign: C.id });
-      } catch (err) {
-        warn.classList.add('on');
-        warn.textContent = 'Could not start the camera: ' + (err && err.message ? err.message : err);
-      }
-    };
-    if (scene && scene.hasLoaded) begin();
-    else if (scene) scene.addEventListener('loaded', begin, { once: true });
-  });
-
-  /* Turning the phone: the camera picture swaps between tall and wide, so the tracker is rebuilt
-     for the new shape. Without this, the AR stays lined up for the way the phone was held at the start. */
-  function watchRotation() {
-    const sys = scene.systems['mindar-image-system'];
-    const v = sys.video; if (!v) return;
-    let wide = v.videoWidth > v.videoHeight, busy = false, again = false;
-    const check = async () => {
-      const w = v.videoWidth, h = v.videoHeight;
-      if (!w || !h || !sys.controller) return;
-      if ((w > h) === wide) { try { sys._resize(); } catch (e) {} return; }
-      if (busy) { again = true; return; }
-      busy = true; wide = w > h;
-      try {
-        sys.controller.stopProcessVideo();
-        await new Promise(r => setTimeout(r, 350));          /* let the last frame finish */
-        try { sys.controller.dispose(); } catch (e) {}
-        v.setAttribute('width', w); v.setAttribute('height', h);
-        await sys._startAR();
-        track('rotated', { campaign: C.id, wide });
-      } catch (e) { $('dbg').textContent = 'Turn: ' + String(e && e.message || e).slice(0, 100); }
-      busy = false;
-      if (again) { again = false; check(); }
-    };
-    v.addEventListener('resize', check);                    /* the camera picture changed shape */
-    addEventListener('orientationchange', () => setTimeout(check, 400));
-    addEventListener('resize', () => setTimeout(check, 250));
-    setInterval(check, 1000);                               /* backup for browsers that don't tell us */
-  }
-
-  window.addEventListener('error', (e) => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
-
-  // test hook
-  window.FIREBIRD_DEBUG = { G, DRAW, ballScreen: () => ballScreen(), startRound, config: () => C,
-    // which band the ball is actually wearing, and whether it came from the
-    // sheet or fell back to a flat colour — the audit checks the render, not
-    // the intent.
-    ballBand: () => ({ band: lastTex, fromAtlas: !!ATLAS[lastTex] }),
-    dressBall: (n) => setBallTexture(n) };
+fetch('assets/chars/chars.json?v=' + SET.version).then(r => r.json()).then(m => {
+  META = m; buildPicker(); buildScene();
+  $('chars').addEventListener('click', () => { $('playGame').href = SET.game + '&char=' + encodeURIComponent(pick); });
+  $('playGame').href = SET.game + '&char=' + encodeURIComponent(pick);
+  let ok = false; try { ok = sessionStorage.getItem('gba-ok') === '1'; } catch (e) {}
+  if (SET.passcode && !ok) {
+    $('lock').classList.remove('hide');
+    $('codeForm').addEventListener('submit', ev => { ev.preventDefault();
+      if ($('code').value.trim().toLowerCase() === SET.passcode.toLowerCase()) { try { sessionStorage.setItem('gba-ok', '1'); } catch (e) {} $('lock').classList.add('hide'); showGate(); }
+      else $('codeErr').textContent = 'That is not the passcode'; });
+  } else showGate();
+  track('session_start');
+  requestAnimationFrame(loop);
+}).catch(e => { $('dbg').textContent = 'Could not load: ' + e.message; });
 })();
 </script>
 </body>
