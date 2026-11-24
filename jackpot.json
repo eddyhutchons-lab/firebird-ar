@@ -2,7 +2,7 @@
   "id": "jackpot",
   "mode": "picker",
   "brand": "Lottery Jackpot",
-  "kicker": "FIREBIRD AFRICA \u00b7 AR SITE",
+  "kicker": "FIREBIRD AFRICA",
   "target": "jackpot.mind",
   "palette": {
     "ground": "#0c0b0d",
@@ -14,7 +14,7 @@
   "copy": {
     "title": "Lottery",
     "titleAccent": "Jackpot",
-    "intro": "Point your phone at the board. Balls roll out of the drum and down the rail \u2014 catch one before it reaches the red chute and its number drops into a port.",
+    "intro": "Point your phone at the board. Catch each ball before it reaches the red chute.",
     "scanning": "Point at the wall",
     "tapToPlay": "Tap To Start",
     "overTitle": "Your six numbers",
