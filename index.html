@@ -150,7 +150,7 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
      tell you the server is up to date while the phone is still running an old
      index.html out of cache — a stale page wearing a current badge. The stamp
      on screen is this constant, which can only be right. */
-  const CODE_BUILD = '14-rotate';
+  const CODE_BUILD = '15-rotatefix';
 
   const params = new URLSearchParams(location.search);
   let campaignId = (params.get('c') || '').replace(/[^a-z0-9_-]/gi, '');
@@ -353,25 +353,47 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
   }
 
   /* ------------------------------------------------------- turning the phone
-     MindAR recomputes the camera's field of view and the video's letterboxing
-     on the window's resize event. On a phone that event arrives while the
-     viewport is still reporting its old width and height, so the geometry it
-     computes belongs to the orientation you just left — the board drifts out
-     of register, or the picture stops matching the overlay, and it looks as
-     though the game is locked to whichever way up you started.
+     Two separate things break when a phone is rotated, and they need two
+     separate fixes.
 
-     The fix is to run its own layout pass again, several times, across the
-     half-second it takes a phone to settle. Idempotent, so repeating it is
-     free; cheap enough that doing it four times costs nothing.
+     1. GEOMETRY. MindAR recomputes the camera's field of view and the video's
+        letterboxing on the window's resize event. On a phone that event
+        arrives while the viewport still reports its old width and height, so
+        it latches onto the orientation you just left. Running its layout pass
+        again a few times across the half-second a phone takes to settle fixes
+        that; it is idempotent, so repeating it costs nothing.
 
-     The camera stream itself never rotates — a phone hands out the same
-     landscape frames whichever way you hold it — so tracking is unaffected.
-     Only the projection needs to catch up, and once it does the ball sits on
-     the rail at the right size for the new shape of the screen. */
-  let relayoutPending = 0;
+     2. THE TRACKER ITSELF. This is the one that actually stops the game.
+        MindAR builds its detector once, from the camera's frame size:
+
+            new Controller({ inputWidth: video.videoWidth, ... })
+
+        Every image pyramid and the projection matrix are sized from those
+        numbers. On Android the live camera track SWAPS width and height when
+        the device turns, so from that moment every frame arrives the wrong
+        shape, detection fails outright, and the board can never be re-found —
+        until you turn back, when it matches again and works instantly. No
+        amount of resizing helps, because the detector is the wrong shape, not
+        the view.
+
+        The only cure is to rebuild the tracker. Stopping and starting the
+        system does that: the camera permission is already granted so there is
+        no second prompt, and the round's state lives in DRAW rather than in
+        the tracker, so caught numbers and misses survive the rebuild.
+
+     The restart is triggered by what actually went wrong rather than by
+     guessing the device: either the video's dimensions changed, or tracking
+     failed to come back shortly after a rotation. That covers phones whose
+     streams rotate and phones whose streams do not. */
+  let arStarted = false, restarting = false, lastRestart = 0;
+  let lastVideoDims = null, rotatedAt = 0, relayoutPending = 0;
+
+  const arSystem = () => sceneEl && sceneEl.systems && sceneEl.systems['mindar-image-system'];
+  const arVideo = () => { const s = arSystem(); return s && s.video; };
+
   function relayout() {
     if (!sceneEl) return;
-    const sys = sceneEl.systems && sceneEl.systems['mindar-image-system'];
+    const sys = arSystem();
     if (sys && typeof sys._resize === 'function' && sys.video && sys.video.videoWidth) {
       try { sys._resize(); } catch (e) {}
     }
@@ -382,16 +404,73 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
       }
     }
   }
+
+  function restartAR(why) {
+    const sys = arSystem();
+    const now = Date.now();
+    if (!sys || !arStarted || restarting || now - lastRestart < 4000) return;
+    restarting = true;
+    lastRestart = now;
+    track('ar_restart', { campaign: C.id, why: why });
+    if (G.tracked) onLost();                 // park the round before the gap
+    /* MindAR only emits targetFound on a transition from invisible to
+       visible. Tearing the tracker down leaves the anchor still flagged
+       visible from before, so when the new tracker re-finds the board there
+       is no transition, no event, and the round stays paused forever while
+       the picture looks perfectly fine. Clear the flag so the next lock
+       counts as a find. */
+    if (targetEl && targetEl.object3D) targetEl.object3D.visible = false;
+    $('hint').textContent = C.copy.scanning || 'Point at the wall';
+    try { sys.stop(); } catch (e) {}
+    arStarted = false;
+    lastVideoDims = null;
+    setTimeout(() => {
+      try { sys.start(); } catch (e) {}
+      restarting = false;
+    }, 150);
+  }
+
+  /* Did the camera change shape under us, or quietly stop? */
+  function checkTracker() {
+    if (!arStarted || restarting) return;
+    const v = arVideo();
+    if (!v || !v.videoWidth) return;
+    if (v.paused) { try { v.play(); } catch (e) {} }
+    const dims = v.videoWidth + 'x' + v.videoHeight;
+    if (lastVideoDims && dims !== lastVideoDims) {
+      return restartAR('camera frame changed ' + lastVideoDims + ' -> ' + dims);
+    }
+    lastVideoDims = dims;
+  }
+
   function scheduleRelayout() {
+    rotatedAt = Date.now();
     clearTimeout(relayoutPending);
     [0, 120, 320, 650].forEach((ms) => { relayoutPending = setTimeout(relayout, ms); });
+    [260, 700, 1300].forEach((ms) => setTimeout(checkTracker, ms));
+    // Last resort: the stream kept its shape but the board still will not come
+    // back. Rebuild anyway rather than leave someone staring at a dead wall.
+    setTimeout(() => {
+      if (arStarted && !G.tracked && Date.now() - rotatedAt >= 2200) {
+        restartAR('no lock ' + Math.round((Date.now() - rotatedAt) / 100) / 10 + 's after rotating');
+      }
+    }, 2600);
   }
+
   function watchOrientation() {
     window.addEventListener('orientationchange', scheduleRelayout);
     window.addEventListener('resize', scheduleRelayout);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleRelayout);
     if (screen.orientation && screen.orientation.addEventListener)
       screen.orientation.addEventListener('change', scheduleRelayout);
+    // Fires again after every rebuild, not just the first start.
+    sceneEl.addEventListener('arReady', () => {
+      arStarted = true;
+      const v = arVideo();
+      lastVideoDims = v && v.videoWidth ? v.videoWidth + 'x' + v.videoHeight : null;
+      relayout();
+    });
+    setInterval(checkTracker, 1500);
   }
 
   /* ----------------------------------------------------------------- camera
@@ -780,6 +859,14 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
     if (G.phase === 'over') return;
     if (G.phase === 'draw' && DRAW.paused) {
       DRAW.paused = false;
+      /* A number that was flying into its port when the board went out of
+         view is parked there by onLost, which leaves nothing in flight.
+         Without this the round resumes and then sits frozen forever, waiting
+         on a ball that was never spawned. */
+      if (!DRAW.ball) {
+        if (DRAW.picked.length >= (C.draw.count || 6)) return finishDraw();
+        spawnBall(C.draw.gapSecs || 0.9);
+      }
       say(C.copy.resumed || 'BACK ON', 700);
       return;
     }
@@ -816,8 +903,33 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
     const dt = Math.min(0.05, (now - (G.last || now)) / 1000);
     G.last = now;
     if (!C || !targetEl) return;
+
+    /* The anchor's own visibility flag is the truth about whether the board
+       is in view. The found/lost events are a convenience on top of it, and
+       they can be missed — across a tracker rebuild, or if two transitions
+       land in the same frame. Reconcile every frame so a missed event can
+       never strand the round. */
+    if (arStarted && !restarting) {
+      const vis = !!(targetEl.object3D && targetEl.object3D.visible);
+      if (vis && !G.tracked) onFound();
+      else if (!vis && G.tracked) onLost();
+    }
+
     if (G.tracked) stepAgitator(dt);
-    if (G.phase === 'draw' && !DRAW.paused) stepDraw(dt);
+    if (G.phase === 'draw' && !DRAW.paused) {
+      /* Last line of defence against a stalled round: if play is live and
+         nothing is in flight for a couple of seconds, something swallowed a
+         ball. Serve another rather than leave a player staring at a wall. */
+      if (!DRAW.ball) {
+        G.idle = (G.idle || 0) + dt;
+        if (G.idle > 2) {
+          G.idle = 0;
+          if (DRAW.picked.length >= (C.draw.count || 6)) finishDraw();
+          else spawnBall(0.3);
+        }
+      } else { G.idle = 0; }
+      stepDraw(dt);
+    }
   }
   requestAnimationFrame(tick);
 
@@ -826,6 +938,8 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
     ballScreen: () => ballScreen(),
     ballBand: () => ({ band: lastBand, fromAtlas: !!ATLAS[lastBand] }),
     dressBall: (n) => setBallTexture(n),
+    restartAR: (why) => restartAR(why || 'manual'),
+    arState: () => ({ started: arStarted, restarting: restarting, dims: lastVideoDims }),
     codeBuild: CODE_BUILD,
   };
 })();
