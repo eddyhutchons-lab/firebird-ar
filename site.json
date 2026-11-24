@@ -4,5 +4,5 @@
   "lockTitle": "Work in progress",
   "lockBody": "This is an internal prototype, not a public site. Enter the passcode Eddy sent you.",
   "defaultCampaign": "jackpot",
-  "build": "13-nopass"
+  "build": "14-rotate"
 }

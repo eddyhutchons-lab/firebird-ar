@@ -150,7 +150,7 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
      tell you the server is up to date while the phone is still running an old
      index.html out of cache — a stale page wearing a current badge. The stamp
      on screen is this constant, which can only be right. */
-  const CODE_BUILD = '13-nopass';
+  const CODE_BUILD = '14-rotate';
 
   const params = new URLSearchParams(location.search);
   let campaignId = (params.get('c') || '').replace(/[^a-z0-9_-]/gi, '');
@@ -295,6 +295,7 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
 
     if (C.ball && C.ball.atlas) loadAtlas(C.ball.atlas);
     buildMisses();
+    watchOrientation();
     $('start').addEventListener('click', startCamera);
     $('again').addEventListener('click', () => { $('over').classList.add('hide'); resetRound(); });
     $('share').addEventListener('click', share);
@@ -349,6 +350,48 @@ small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opaci
       m.material.color.set(BANDS[i][3]);     // sheet not in yet — hold the band colour
     }
     m.material.needsUpdate = true;
+  }
+
+  /* ------------------------------------------------------- turning the phone
+     MindAR recomputes the camera's field of view and the video's letterboxing
+     on the window's resize event. On a phone that event arrives while the
+     viewport is still reporting its old width and height, so the geometry it
+     computes belongs to the orientation you just left — the board drifts out
+     of register, or the picture stops matching the overlay, and it looks as
+     though the game is locked to whichever way up you started.
+
+     The fix is to run its own layout pass again, several times, across the
+     half-second it takes a phone to settle. Idempotent, so repeating it is
+     free; cheap enough that doing it four times costs nothing.
+
+     The camera stream itself never rotates — a phone hands out the same
+     landscape frames whichever way you hold it — so tracking is unaffected.
+     Only the projection needs to catch up, and once it does the ball sits on
+     the rail at the right size for the new shape of the screen. */
+  let relayoutPending = 0;
+  function relayout() {
+    if (!sceneEl) return;
+    const sys = sceneEl.systems && sceneEl.systems['mindar-image-system'];
+    if (sys && typeof sys._resize === 'function' && sys.video && sys.video.videoWidth) {
+      try { sys._resize(); } catch (e) {}
+    }
+    if (sceneEl.renderer && sceneEl.canvas) {
+      const w = window.innerWidth, h = window.innerHeight;
+      if (sceneEl.canvas.width !== w || sceneEl.canvas.height !== h) {
+        try { sceneEl.renderer.setSize(w, h, false); } catch (e) {}
+      }
+    }
+  }
+  function scheduleRelayout() {
+    clearTimeout(relayoutPending);
+    [0, 120, 320, 650].forEach((ms) => { relayoutPending = setTimeout(relayout, ms); });
+  }
+  function watchOrientation() {
+    window.addEventListener('orientationchange', scheduleRelayout);
+    window.addEventListener('resize', scheduleRelayout);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleRelayout);
+    if (screen.orientation && screen.orientation.addEventListener)
+      screen.orientation.addEventListener('change', scheduleRelayout);
   }
 
   /* ----------------------------------------------------------------- camera
