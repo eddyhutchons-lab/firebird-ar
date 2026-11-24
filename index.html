@@ -7,181 +7,136 @@
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Cache-Control" content="no-cache">
+<!-- Suppresses the browser's automatic /favicon.ico request, which otherwise
+     logs a 404 on every load and sends people hunting for a missing file. -->
+<link rel="icon" href="data:,">
 
-<!-- Vendored so a live site has no CDN dependency. CDN equivalents if you prefer:
+<!-- Vendored so a live site has no CDN dependency. CDN equivalents if ever needed:
      https://aframe.io/releases/1.5.0/aframe.min.js
      https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js -->
 <script src="./vendor/aframe.min.js"></script>
 <script src="./vendor/mindar-image-aframe.prod.js"></script>
 
 <style>
-  :root{
-    --ground:#f3eee4; --ink:#121e36; --accent:#f0ac2c; --ball:#d63c2c;
-    --pop:#5ee83f; --panel:rgba(18,30,54,.9);
-  }
-  *{box-sizing:border-box}
+/* MindAR injects its <video> into <body> at z-index:-2 — the ROOT stacking
+   context — so an opaque background on <body> paints straight over the camera
+   feed and you get a black screen. The letterbox colour lives on <html>;
+   <body> stays transparent. This is not cosmetic, it is the bug. */
+html { background:#000; height:100%; margin:0; }
+body {
+  margin:0; height:100%; overflow:hidden; background:transparent;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-tap-highlight-color:transparent; color:var(--ink);
+}
+body > video { z-index:0 !important; }
+a-scene { position:fixed; inset:0; z-index:1; }
 
-  /* MindAR injects its <video> into <body> at z-index:-2 — the ROOT stacking
-     context — so an opaque background on <body> paints straight over the
-     camera. Letterbox colour lives on <html>; <body> stays transparent. */
-  html{background:#000;height:100%;margin:0}
-  body{margin:0;height:100%;overflow:hidden;background:transparent;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
-  body > video{z-index:0 !important}
-  a-scene{position:fixed;inset:0;z-index:1}
+:root{
+  --ground:#0c0b0d; --ink:#f6f0e0; --accent:#ecbe48; --ball:#eb6e18; --pop:#ffd447;
+}
+.sheet{
+  position:fixed; inset:0; z-index:4; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center;
+  padding:28px 22px; background:var(--ground); gap:14px;
+}
+.sheet.hide{ display:none; }
+.kicker{ font-size:12px; letter-spacing:.22em; color:var(--accent); font-weight:700; }
+h1{ font-size:clamp(30px,9vw,46px); line-height:1.04; margin:0; font-weight:800; }
+h1 span{ color:var(--accent); display:block; }
+p.intro{ max-width:30ch; font-size:15px; line-height:1.5; opacity:.82; margin:0; }
+button{
+  font:inherit; font-weight:700; font-size:17px; border:0; border-radius:999px;
+  padding:16px 34px; background:var(--accent); color:#17120a; cursor:pointer;
+}
+button.ghost{ background:transparent; color:var(--ink); border:1.5px solid rgba(246,240,224,.35); }
+input{
+  font:inherit; font-size:17px; text-align:center; padding:13px 18px; border-radius:12px;
+  border:1.5px solid rgba(246,240,224,.3); background:rgba(0,0,0,.35); color:var(--ink);
+  width:min(260px,70vw);
+}
+small#build{ position:fixed; bottom:14px; left:0; right:0; font-size:11px; opacity:.5; }
+#warn{
+  display:none; position:fixed; top:0; left:0; right:0; z-index:6; padding:11px 16px;
+  background:#8a4a10; color:#fff; font-size:13px; line-height:1.4;
+}
+#warn.on{ display:block; }
 
-  /* ---------------------------------------------------------------- HUD */
-  #ui{position:fixed;inset:0;z-index:10;pointer-events:none;
-    padding:calc(env(safe-area-inset-top,0px) + 16px) 18px calc(env(safe-area-inset-bottom,0px) + 20px)}
-
-  #brand{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);left:16px;
-    font-size:15px;font-weight:800;letter-spacing:.16em;color:#fff;
-    writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);
-    text-shadow:0 2px 10px rgba(0,0,0,.6);opacity:.92}
-
-  #score{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:20px;
-    font-size:64px;font-weight:800;color:#fff;line-height:1;
-    text-shadow:0 3px 18px rgba(0,0,0,.55);font-variant-numeric:tabular-nums;
-    opacity:0;transition:opacity .25s}
-  #score.on{opacity:1}
-  #best{position:absolute;top:calc(env(safe-area-inset-top,0px) + 82px);right:22px;
-    font-size:12px;letter-spacing:.14em;color:#fff;opacity:0;text-shadow:0 2px 8px rgba(0,0,0,.6);
-    transition:opacity .25s}
-  #best.on{opacity:.75}
-
-  /* comic pop — the "HIT!" burst */
-  #pop{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.4);
-    font-size:76px;font-weight:900;font-style:italic;letter-spacing:-.02em;
-    color:var(--pop);-webkit-text-stroke:6px #10240a;paint-order:stroke fill;
-    text-shadow:0 8px 0 rgba(0,0,0,.35);opacity:0;white-space:nowrap}
-  #pop.go{animation:popIn .55s cubic-bezier(.2,1.5,.4,1) forwards}
-  @keyframes popIn{
-    0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-8deg)}
-    35%{opacity:1;transform:translate(-50%,-56%) scale(1.12) rotate(3deg)}
-    70%{opacity:1;transform:translate(-50%,-58%) scale(1) rotate(-1deg)}
-    100%{opacity:0;transform:translate(-50%,-72%) scale(1) rotate(0)}
-  }
-
-  /* big encouragement line, e.g. KEEP IT UP! */
-  #cheer{position:absolute;left:50%;top:22%;transform:translate(-50%,0);
-    font-size:34px;font-weight:900;font-style:italic;color:var(--pop);
-    -webkit-text-stroke:4px #10240a;paint-order:stroke fill;white-space:nowrap;
-    opacity:0;transition:opacity .3s}
-  #cheer.on{opacity:1}
-
-  #countdown{position:absolute;inset:0;display:grid;place-items:center;
-    font-size:190px;font-weight:800;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.5);
-    opacity:0;pointer-events:none}
-  #countdown.go{animation:cd .9s ease-out forwards}
-  @keyframes cd{0%{opacity:0;transform:scale(1.6)}25%{opacity:1;transform:scale(1)}
-                80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.9)}}
-
-  #tapplay{position:absolute;left:50%;bottom:16%;transform:translateX(-50%);
-    font-size:30px;font-weight:900;font-style:italic;color:var(--pop);
-    -webkit-text-stroke:4px #10240a;paint-order:stroke fill;
-    opacity:0;transition:opacity .3s;white-space:nowrap}
-  #tapplay.on{opacity:1;animation:bob 1.6s ease-in-out infinite}
-  @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-8px)}}
-
-  /* scanning reticle */
-  #scan{position:fixed;inset:0;z-index:9;display:none;place-items:center;pointer-events:none}
-  #scan.on{display:grid}
-  #scan .box{width:min(76vw,330px);aspect-ratio:7/4;position:relative;animation:breathe 2.4s ease-in-out infinite}
-  #scan .box i{position:absolute;width:32px;height:32px;border:3px solid #fff;opacity:.9}
-  #scan .box i:nth-child(1){top:0;left:0;border-right:0;border-bottom:0}
-  #scan .box i:nth-child(2){top:0;right:0;border-left:0;border-bottom:0}
-  #scan .box i:nth-child(3){bottom:0;left:0;border-right:0;border-top:0}
-  #scan .box i:nth-child(4){bottom:0;right:0;border-left:0;border-top:0}
-  #scanTxt{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);
-    color:#fff;font-size:15px;text-shadow:0 2px 12px rgba(0,0,0,.7);text-align:center;white-space:nowrap}
-  @keyframes breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.04);opacity:1}}
-
-  /* ------------------------------------------------------------- cards */
-  .card{position:fixed;inset:0;z-index:30;background:var(--ground);color:var(--ink);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:32px;gap:18px}
-  .card.hide{display:none}
-  .card h1{font-size:34px;line-height:1.05;margin:0;letter-spacing:-.02em}
-  .card h1 em{font-style:normal;color:var(--ball)}
-  .card p{margin:0;max-width:34ch;font-size:15px;line-height:1.5;color:#55617a}
-  .card button,.card a.btn{pointer-events:auto;border:0;border-radius:999px;background:var(--ink);
-    color:#fff;font-size:17px;font-weight:700;padding:16px 40px;letter-spacing:.02em;
-    text-decoration:none;display:inline-block}
-  .card button:active{transform:scale(.97)}
-  .card small{font-size:11px;letter-spacing:.12em;color:#8a93a8}
-  #warn{background:#fdf0ee;border:1px solid #f0c8c0;color:#a3271a;border-radius:12px;
-    padding:12px 16px;font-size:13px;line-height:1.45;max-width:34ch;display:none}
-  #warn.on{display:block}
-  #code{pointer-events:auto;border:2px solid #c9cfda;border-radius:14px;padding:14px 20px;
-    font-size:18px;text-align:center;width:min(260px,72vw);background:#fff;color:var(--ink)}
-  #code:focus{outline:none;border-color:var(--ink)}
-
-  /* end card, modelled on the reference's score screen */
-  #over{background:var(--ink);color:#fff}
-  #over h1{font-size:38px;font-style:italic;color:var(--pop);
-    -webkit-text-stroke:3px #10240a;paint-order:stroke fill}
-  #over .num{font-size:104px;font-weight:800;line-height:.9;color:var(--accent);
-    font-variant-numeric:tabular-nums}
-  #over .lbl{font-size:13px;letter-spacing:.3em;opacity:.7}
-  #over p{color:#c3cbdb}
-  #over .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-  #over .ghost{background:transparent;border:2px solid rgba(255,255,255,.45)}
-  #newbest{font-size:13px;letter-spacing:.2em;color:var(--accent);font-weight:700;visibility:hidden}
-  #misses{position:absolute;top:calc(env(safe-area-inset-top,0px) + 18px);left:50%;
-    transform:translateX(-50%);display:none;gap:9px;align-items:center}
-  #misses.on{display:flex}
-  #misses i{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.75);
-    box-shadow:0 2px 8px rgba(0,0,0,.5)}
-  #misses i.spent{background:var(--ball);border-color:var(--ball)}
+/* ---------------------------------------------------------------- in-play UI */
+#hud{
+  position:fixed; inset:0; z-index:3; pointer-events:none; display:none;
+  flex-direction:column; justify-content:space-between; padding:18px;
+}
+#hud.on{ display:flex; }
+.hudrow{ display:flex; align-items:center; justify-content:space-between; }
+#score{
+  font-size:34px; font-weight:800; color:var(--ink);
+  text-shadow:0 2px 14px rgba(0,0,0,.85);
+}
+#misses{ display:flex; gap:7px; }
+#misses i{
+  width:11px; height:11px; border-radius:50%; background:rgba(246,240,224,.3);
+  border:1.5px solid rgba(246,240,224,.55); display:block;
+}
+#misses i.spent{ background:#d8382e; border-color:#d8382e; }
+#say{
+  align-self:center; font-size:19px; font-weight:800; letter-spacing:.05em;
+  color:var(--pop); text-shadow:0 2px 16px rgba(0,0,0,.9); opacity:0;
+  transition:opacity .18s; text-align:center;
+}
+#say.on{ opacity:1; }
+#hint{
+  align-self:center; font-size:13px; opacity:.85; color:var(--ink);
+  text-shadow:0 2px 10px rgba(0,0,0,.9); text-align:center;
+}
+#nums{ display:flex; flex-wrap:wrap; gap:9px; justify-content:center; margin:4px 0 2px; }
+#nums b{
+  min-width:46px; padding:11px 6px; border-radius:50%; background:#f8f4e8; color:#14110f;
+  font-size:19px; font-weight:800; border:3px solid var(--accent);
+}
 </style>
 </head>
 <body>
 
-<div id="lock" class="card hide">
-  <small>PRIVATE PROTOTYPE</small>
+<div id="warn"></div>
+
+<!-- passcode gate -->
+<div id="lock" class="sheet hide">
+  <div class="kicker">FIREBIRD AFRICA</div>
   <h1 id="lockTitle">Work in progress</h1>
-  <p id="lockBody"></p>
-  <input id="code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"
-         placeholder="Passcode" aria-label="Passcode">
-  <button id="unlock">Continue</button>
-  <small id="codeErr" style="color:#a3271a;visibility:hidden">That is not the passcode</small>
+  <p class="intro" id="lockBody"></p>
+  <input id="code" type="text" autocapitalize="none" autocomplete="off" placeholder="passcode">
+  <div id="codeErr" style="visibility:hidden;font-size:13px;color:#ff9a8a">Not that one. Try again.</div>
+  <button id="unlock">Enter</button>
 </div>
 
-<div id="gate" class="card hide">
-  <small id="kicker">FIREBIRD AFRICA · AR SITE</small>
-  <h1 id="title">Loading…</h1>
-  <p id="intro"></p>
-  <div id="warn"></div>
+<!-- start screen -->
+<div id="gate" class="sheet hide">
+  <div class="kicker" id="kicker">FIREBIRD AFRICA · AR SITE</div>
+  <h1 id="title">Lottery<span id="titleAccent">Jackpot</span></h1>
+  <p class="intro" id="intro"></p>
   <button id="start">Start camera</button>
-  <small id="build" style="opacity:.5"></small>
-  <small id="dbg" style="opacity:.55"></small>
+  <small id="build"></small>
 </div>
 
-<div id="over" class="card hide">
-  <h1 id="overTitle">Keep It Up!</h1>
-  <div class="lbl" id="overLbl">SCORE</div>
-  <div class="num" id="finalScore">0</div>
-  <div id="newbest">NEW PERSONAL BEST</div>
-  <p id="overBody"></p>
-  <div class="row">
-    <button id="again">Play again</button>
-    <button id="share" class="ghost">Share your score</button>
+<!-- heads-up display while playing -->
+<div id="hud">
+  <div class="hudrow">
+    <div id="score">0</div>
+    <div id="misses"></div>
   </div>
-  <a id="overCta" class="btn" href="#" target="_blank" rel="noopener" style="background:var(--accent);color:var(--ink)"></a>
+  <div id="say"></div>
+  <div id="hint">Point at the wall</div>
 </div>
 
-<div id="scan"><div class="box"><i></i><i></i><i></i><i></i></div><div id="scanTxt">Point at the mural</div></div>
-
-<div id="ui">
-  <div id="brand">FIREBIRD</div>
-  <div id="score">0</div>
-  <div id="best"></div>
-  <div id="pop"></div>
-  <div id="cheer"></div>
-  <div id="tapplay">Tap To Play</div>
-  <div id="misses"></div>
-  <div id="countdown"></div>
+<!-- result card -->
+<div id="over" class="sheet hide">
+  <div class="kicker" id="overLabel">FOR THE NEXT DRAW</div>
+  <h1 id="overTitle">Your six numbers</h1>
+  <div id="nums"></div>
+  <p class="intro" id="overBody"></p>
+  <button id="again">Play again</button>
+  <button id="share" class="ghost">Share your numbers</button>
+  <button id="overCta" class="ghost" style="display:none">See the next draw</button>
 </div>
 
 <script>
@@ -190,15 +145,21 @@
   const $ = (id) => document.getElementById(id);
   const track = window.FIREBIRD_TRACK || function (e, d) { console.log('[track]', e, d || {}); };
 
-  // Which campaign loads: ?c=name wins, otherwise site.json's defaultCampaign.
-  // Keeping the default in site.json means switching which experience the plain
-  // link shows is a one-word edit, not a code change.
+  /* The version of THIS FILE, hard-coded. site.json's build number travels
+     independently and is always fetched fresh, so showing that number would
+     tell you the server is up to date while the phone is still running an old
+     index.html out of cache — a stale page wearing a current badge. The stamp
+     on screen is this constant, which can only be right. */
+  const CODE_BUILD = '12-restore';
+
   const params = new URLSearchParams(location.search);
   let campaignId = (params.get('c') || '').replace(/[^a-z0-9_-]/gi, '');
+  let BUILD = '0';
 
   const ua = navigator.userAgent || '';
   const inApp = /FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|MicroMessenger/i.test(ua);
-  const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+  const secure = location.protocol === 'https:' ||
+                 ['localhost', '127.0.0.1'].includes(location.hostname);
   const warn = $('warn');
   if (!secure) {
     warn.classList.add('on');
@@ -208,54 +169,43 @@
     warn.textContent = 'You opened this inside another app’s browser, which usually blocks the camera. Tap the ⋯ menu and choose “Open in Safari” or “Open in Chrome”.';
   }
 
-  let C, scene, targetEl, ballEl, shadowEl, glowEl;
-  let TEX = [], BANDS = null, lastTex = -1;
-  // Every asset is fetched with ?v=<build>. Without this the phone happily
-  // keeps serving yesterday's ball and yesterday's game from its cache, and
-  // you spend an evening wondering why an upload did nothing.
-  let BUILD = '0';
-
-  /* The version of THIS FILE, hard-coded. site.json's build number travels
-     independently and is always fetched fresh, so showing that number told
-     you the server was up to date while the phone was still running an old
-     index.html from cache — a stale page wearing a current badge. The stamp
-     on screen is now this constant, which can only be right. */
-  const CODE_BUILD = '11-selfcheck';
+  let C, sceneEl, targetEl, ballEl, shadowEl;
+  let TEX = [], BANDS = null, lastBand = -1;
+  const ATLAS = [];
+  const AGIT = [];
 
   /* ------------------------------------------------------------ access gate
      A doorman, not a vault: it makes a forwarded link useless, but the code
      lives in the page. Real locking belongs on the host. */
   function gateAccess() {
-    // site.json carries the build number, so it can never be read from cache —
-    // a stale copy here makes every other ?v= stamp point at the wrong build.
     return fetch('site.json?t=' + Date.now(), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
       .then((s) => new Promise((resolve) => {
         const code = (s.passcode || '').trim();
         let already = false;
         try { already = sessionStorage.getItem('fb_unlocked') === code && code !== ''; } catch (e) {}
-        if (!campaignId) campaignId = (s.defaultCampaign || 'fridge').replace(/[^a-z0-9_-]/gi, '');
+        if (!campaignId) campaignId = (s.defaultCampaign || 'jackpot').replace(/[^a-z0-9_-]/gi, '');
         BUILD = String(s.build || '0');
         $('build').textContent = 'build ' + CODE_BUILD;
 
-        /* If the server has moved on and this page hasn't, the phone is
+        /* If the server has moved on and this page has not, the phone is
            serving a cached index.html. Reload once against a URL it has never
-           seen — one shot per server build, so a genuine mismatch can never
+           seen — one shot per server build, so a real mismatch can never
            become a refresh loop. */
         if (BUILD !== '0' && BUILD !== CODE_BUILD) {
           let tried = null;
           try { tried = sessionStorage.getItem('fb_reload_for'); } catch (e) {}
           if (tried !== BUILD) {
             try { sessionStorage.setItem('fb_reload_for', BUILD); } catch (e) {}
-            location.replace(location.pathname + '?b=' + encodeURIComponent(BUILD)
-              + (campaignId ? '&c=' + campaignId : ''));
-            return;                       // navigating away; don't start a round
+            location.replace(location.pathname + '?b=' + encodeURIComponent(BUILD) +
+                             (campaignId ? '&c=' + campaignId : ''));
+            return;
           }
           $('build').textContent = 'build ' + CODE_BUILD + ' — server has ' + BUILD;
           warn.classList.add('on');
-          warn.textContent = 'This page is an old copy held in your browser cache. '
-            + 'Close the tab completely and reopen the link to get build ' + BUILD + '.';
+          warn.textContent = 'This page is an old copy held in your browser cache. Close the tab completely and reopen the link to get build ' + BUILD + '.';
         }
+
         if (!code || already) { $('gate').classList.remove('hide'); return resolve(); }
         $('lockTitle').textContent = s.lockTitle || 'Work in progress';
         $('lockBody').textContent = s.lockBody || 'This is an internal prototype, not a public site.';
@@ -273,9 +223,9 @@
       }));
   }
 
-  // Campaigns are looked for beside index.html first, then in campaigns/.
-  // Root-level wins so a new experience can be added by dropping loose files
-  // onto the repo, with no folder navigation and nothing to nest wrongly.
+  /* Campaigns are looked for beside index.html first, then in campaigns/.
+     Root-level wins so a new experience can be added by dropping loose files
+     onto the repo, with no folder navigation and nothing to nest wrongly. */
   const loadCampaign = (id) => fetch(id + '.json?v=' + BUILD)
     .then((r) => (r.ok ? r : fetch('campaigns/' + id + '.json?v=' + BUILD)));
 
@@ -288,162 +238,171 @@
       $('start').style.display = 'none';
     }));
 
-  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
+  /* --------------------------------------------------------------- the scene */
   function boot(cfg) {
     C = cfg;
     track('session_start', { campaign: C.id });
-    const p = C.palette || {}, root = document.documentElement.style;
-    ['ground', 'ink', 'accent', 'ball', 'pop'].forEach((k) => { if (p[k]) root.setProperty('--' + k, p[k]); });
-    $('kicker').textContent = C.kicker || '';
-    $('brand').textContent = C.brand || '';
-    $('title').innerHTML = esc(C.copy.title) + '<br><em>' + esc(C.copy.titleAccent || '') + '</em>';
-    $('intro').textContent = C.copy.intro || '';
-    $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Play';
-    $('overTitle').textContent = C.copy.overTitle || 'Keep It Up!';
-    $('scanTxt').textContent = C.copy.scanning || 'Point at the mural';
-    document.title = C.brand + ' — AR';
-    try { G.best = Number(localStorage.getItem('fb_best_' + campaignId) || 0) || 0; } catch (e) {}
-    buildScene();
-  }
 
-  /* --------------------------------------------------------------- scene */
-  function buildScene() {
-    const props = (C.props || []).map((pr) => {
-      const pos = pr.pos.join(' ');
-      const mat = 'material="color:' + pr.color + '; roughness:.55"';
-      if (pr.type === 'sphere') return `<a-sphere class="prop" position="${pos}" radius="${pr.size[0]}" ${mat}></a-sphere>`;
-      if (pr.type === 'cylinder') return `<a-cylinder class="prop" position="${pos}" radius="${pr.size[0]}" height="${pr.size[1]}" ${mat}></a-cylinder>`;
-      if (pr.type === 'disc') return `<a-cylinder class="prop" position="${pos}" radius="${pr.size[0]}" height="${pr.size[1]}" rotation="90 0 0" ${mat}></a-cylinder>`;
-      return `<a-box class="prop" position="${pos}" width="${pr.size[0]}" height="${pr.size[1]}" depth="${pr.size[2]}" ${mat}></a-box>`;
-    }).join('');
+    const pal = C.palette || {}, root = document.documentElement.style;
+    ['ground', 'ink', 'accent', 'ball', 'pop'].forEach((k) => {
+      if (pal[k]) root.setProperty('--' + k, pal[k]);
+    });
+    const copy = C.copy || {};
+    $('kicker').textContent = C.kicker || 'FIREBIRD AFRICA';
+    $('title').firstChild.textContent = copy.title || C.brand || 'Firebird';
+    $('titleAccent').textContent = copy.titleAccent || '';
+    $('intro').textContent = copy.intro || '';
+    $('start').textContent = 'Start camera';
+    $('hint').textContent = copy.scanning || 'Point at the wall';
+    $('overLabel').textContent = copy.overLabel || '';
+    $('overTitle').textContent = copy.overTitle || 'Your numbers';
+    if (C.reward && C.reward.url) {
+      $('overCta').style.display = '';
+      $('overCta').textContent = C.reward.cta || 'Find out more';
+      $('overCta').addEventListener('click', () => window.open(C.reward.url, '_blank', 'noopener'));
+    }
 
-    // A campaign may give one texture, a flat set, or bands. Bands are the
-    // real thing: in the South African draw a ball's colour is fixed by its
-    // number, so the colour is information rather than decoration. Whichever
-    // form is used, every texture is preloaded into <a-assets> — swapping a
-    // ball must never wait on a fetch mid-roll.
+    /* A campaign may give one texture or a sheet of bands. Bands are the real
+       thing: in the South African draw a ball's colour is fixed by its number,
+       so the colour is information rather than decoration. */
     BANDS = (C.ball && C.ball.bands) || null;
-    TEX = (BANDS && !C.ball.atlas) ? BANDS.map((b) => b[2])
-        : (C.ball && C.ball.textures && C.ball.textures.length) ? C.ball.textures.slice()
-        : (C.ball && C.ball.texture ? [C.ball.texture] : []);
-    const ballMat = TEX.length
-      ? `material="src: #balltex0; roughness:.28; metalness:.06"`
-      : `material="color:${(BANDS && BANDS[0][3]) || C.palette.ball || '#d63c2c'}; roughness:.28; metalness:.06"`;
 
     document.body.insertAdjacentHTML('beforeend',
-      `<a-scene mindar-image="imageTargetSrc: ${C.target}?v=${BUILD}; autoStart: false; uiScanning: no; uiLoading: no; uiError: no;
-         filterMinCF: 0.0001; filterBeta: 0.005; missTolerance: 6; warmupTolerance: 3"
-        color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true"
-        vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-        <a-assets>${TEX.map((t, i) => `<img id="balltex${i}" src="${t}?v=${BUILD}" crossorigin="anonymous">`).join('')}</a-assets>
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-        <a-entity id="target" mindar-image-target="targetIndex: 0">
-          <a-entity light="type: ambient; intensity: 0.9"></a-entity>
-          <a-entity light="type: directional; intensity: 0.55" position="0.4 0.7 1"></a-entity>
-          <a-plane id="glow" position="0 0 -0.002" width="1.02" height="0.60"
-            material="color: ${C.palette.accent || '#f0ac2c'}; opacity: 0; transparent: true; side: double"></a-plane>
-          <a-entity id="props">${props}</a-entity>
-          <a-ring id="shadow" position="0 -0.5 0.002" radius-inner="0" radius-outer="0.07"
-            material="color:#000; opacity:.2; transparent:true; side:double"></a-ring>
-          <a-sphere id="ball" radius="${(C.ball && C.ball.radius) || 0.13}"
-            position="0 0.3 0.2" segments-width="32" segments-height="24" ${ballMat}></a-sphere>
-        </a-entity>
-      </a-scene>`);
+      '<a-scene mindar-image="imageTargetSrc: ' + C.target + '?v=' + BUILD + '; autoStart: false; ' +
+        'uiScanning: no; uiLoading: no; uiError: no; filterMinCF: 0.0001; filterBeta: 0.005; ' +
+        'missTolerance: 6; warmupTolerance: 3" ' +
+        'color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" ' +
+        'vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">' +
+        '<a-camera position="0 0 0" look-controls="enabled: false"></a-camera>' +
+        '<a-entity id="target" mindar-image-target="targetIndex: 0">' +
+          '<a-entity light="type: ambient; intensity: 0.92"></a-entity>' +
+          '<a-entity light="type: directional; intensity: 0.5" position="0.4 0.7 1"></a-entity>' +
+          '<a-ring id="shadow" position="0 -0.5 0.002" radius-inner="0" radius-outer="0.05" ' +
+            'material="color:#000; opacity:.22; transparent:true; side:double"></a-ring>' +
+          '<a-sphere id="ball" radius="' + ((C.ball && C.ball.radius) || 0.035) + '" ' +
+            'position="0 0 0.02" segments-width="32" segments-height="24" ' +
+            'material="color:' + ((BANDS && BANDS[0][3]) || pal.ball || '#eb6e18') + '; ' +
+            'roughness:.28; metalness:.06"></a-sphere>' +
+        '</a-entity>' +
+      '</a-scene>');
 
-    scene = document.querySelector('a-scene');
-    targetEl = $('target'); ballEl = $('ball'); shadowEl = $('shadow'); glowEl = $('glow');
-    if (C.ball && C.ball.atlas) loadAtlas(C.ball.atlas);
+    sceneEl = document.querySelector('a-scene');
+    targetEl = $('target'); ballEl = $('ball'); shadowEl = $('shadow');
+    ballEl.object3D.visible = false;
+    shadowEl.object3D.visible = false;
     targetEl.addEventListener('targetFound', onFound);
     targetEl.addEventListener('targetLost', onLost);
-    ballEl.object3D.visible = false;
+
+    if (C.ball && C.ball.atlas) loadAtlas(C.ball.atlas);
+    buildMisses();
+    $('start').addEventListener('click', startCamera);
+    $('again').addEventListener('click', () => { $('over').classList.add('hide'); resetRound(); });
+    $('share').addEventListener('click', share);
+    window.addEventListener('pointerdown', onTap);
   }
 
-  /* ---------------------------------------------------------------- game
-     Keepy-uppy, as in the reference: the ball falls under gravity and you tap
-     it to send it back up. Miss it and the run ends. Everything happens in the
-     mural's own coordinate space, so the ball really is in front of the wall. */
-  const G = { phase: 'idle', score: 0, best: 0, last: 0, tracked: false,
-              pos: {x: 0, y: 0.3, z: 0.2}, vel: {x: 0, y: 0, z: 0}, spin: {x: 0, y: 0} };
-
-  const V3 = () => new AFRAME.THREE.Vector3();
-
-  function resetBall() {
-    const ph = C.play;
-    G.pos = { x: 0, y: ph.startY, z: ph.startZ };
-    G.vel = { x: 0, y: 0, z: 0 };
-    G.spin = { x: 0, y: 0 };
-    applyBall();
+  /* ------------------------------------------------------------- ball atlas
+     One image holding every band's map, stacked top to bottom, sliced once
+     here. Cheaper to upload and to serve than eight files, and it means a ball
+     never changes colour a frame late waiting on a fetch. If the sheet fails
+     to load the ball keeps a flat band colour, so the round still plays. */
+  function loadAtlas(src) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const THREE = AFRAME.THREE, rows = BANDS ? BANDS.length : 1, h = img.height / rows;
+      for (let i = 0; i < rows; i++) {
+        const cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, i * h, img.width, h, 0, 0, img.width, h);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace || t.colorSpace;
+        t.anisotropy = 4;
+        ATLAS[i] = t;
+      }
+      TEX = ATLAS;
+      if (DRAW.ball) setBallTexture(DRAW.ball.n);
+    };
+    img.onerror = () => track('atlas_failed', { campaign: C.id });
+    img.src = src + '?v=' + BUILD;
   }
 
-  function applyBall() {
-    if (!ballEl) return;
-    ballEl.object3D.position.set(G.pos.x, G.pos.y, G.pos.z);
-    ballEl.object3D.rotation.x = G.spin.x;
-    ballEl.object3D.rotation.y = G.spin.y;
-    // Contact shadow on the wall. Only drawn while the ball is actually over
-    // the artwork — off the edge there is no wall to cast onto, and a grey
-    // disc floating in the sky is the fastest way to break the illusion.
-    const overWall = Math.abs(G.pos.x) < 0.48 && Math.abs(G.pos.y) < 0.27;
-    shadowEl.object3D.visible = overWall && ballEl.object3D.visible;
-    if (overWall) {
-      shadowEl.object3D.position.set(G.pos.x, G.pos.y, 0.003);
-      const near = Math.min(1, Math.max(0, G.pos.z / 0.6));
-      const s = 0.8 + near * 0.5;
-      shadowEl.object3D.scale.set(s, s, s);
-      shadowEl.setAttribute('material', 'opacity', 0.16 * (1 - near * 0.8));
+  /* Which band a number belongs to. Bands are [low, high, row, hex] and the
+     last one is open-ended, so extending the game's range never leaves a
+     number without a colour. */
+  function bandOf(n) {
+    if (!BANDS) return -1;
+    for (let i = 0; i < BANDS.length; i++) if (n >= BANDS[i][0] && n <= BANDS[i][1]) return i;
+    return BANDS.length - 1;
+  }
+
+  function setBallTexture(n) {
+    const i = bandOf(n);
+    if (i < 0) return;
+    lastBand = i;
+    const m = ballEl.getObject3D('mesh');
+    if (!m) return;
+    if (ATLAS[i]) {
+      m.material.map = ATLAS[i];
+      m.material.color.setHex(0xffffff);
+    } else if (BANDS[i][3]) {
+      m.material.color.set(BANDS[i][3]);     // sheet not in yet — hold the band colour
     }
+    m.material.needsUpdate = true;
   }
 
-  function pop(text) {
-    const el = $('pop');
-    el.textContent = text;
-    el.classList.remove('go');
-    void el.offsetWidth;
-    el.classList.add('go');
+  /* ----------------------------------------------------------------- camera
+     MindAR's start() returns nothing — it reports through events on the scene,
+     so success is 'arReady' and failure is 'arError'. Treating it as a promise
+     throws, leaves the start screen covering a running scene, and makes the
+     whole thing look broken when the camera is in fact working. */
+  function startCamera() {
+    const btn = $('start');
+    btn.disabled = true;
+    btn.textContent = 'Starting…';
+
+    let settled = false;
+    const ok = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(bail);
+      $('gate').classList.add('hide');
+      $('hud').classList.add('on');
+      if (G.phase === 'idle') G.phase = 'scan';
+      track('camera_started', { campaign: C.id });
+    };
+    const fail = (why) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(bail);
+      btn.disabled = false;
+      btn.textContent = 'Start camera';
+      warn.classList.add('on');
+      warn.textContent = 'The camera could not start. Check that this site is allowed to use the camera in your browser settings, then tap Start again.';
+      track('camera_failed', { campaign: C.id, error: String(why) });
+    };
+
+    sceneEl.addEventListener('arReady', ok, { once: true });
+    sceneEl.addEventListener('arError', (e) => fail((e.detail && e.detail.error) || 'arError'), { once: true });
+    // If neither event arrives the permission prompt was most likely dismissed.
+    const bail = setTimeout(() => fail('timeout'), 20000);
+
+    const go = () => {
+      try {
+        const sys = sceneEl.systems['mindar-image-system'];
+        if (!sys) return fail('no mindar system');
+        const maybe = sys.start();
+        if (maybe && typeof maybe.then === 'function') maybe.then(ok).catch(fail);
+      } catch (e) { fail(e && e.message || e); }
+    };
+    if (sceneEl.hasLoaded) go(); else sceneEl.addEventListener('loaded', go, { once: true });
   }
 
-  function cheer(text) {
-    const el = $('cheer');
-    el.textContent = text;
-    el.classList.add('on');
-    clearTimeout(cheer._t);
-    cheer._t = setTimeout(() => el.classList.remove('on'), 1800);
-  }
-
-  function setScore(n) {
-    G.score = n;
-    $('score').textContent = n;
-    const cues = C.copy.cheers || {};
-    if (cues[n]) cheer(cues[n]);
-  }
-
-  /* Hit testing: project the ball to screen space and compare with the tap.
-     Cheaper and far more forgiving than a raycast, which matters when someone
-     is holding a phone at arm's length in the sun. */
-  function ballScreen() {
-    const cam = scene.camera;
-    const v = V3();
-    ballEl.object3D.getWorldPosition(v);
-    const world = v.clone();
-    v.project(cam);
-    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
-    // radius in pixels: project a point one radius to the side
-    const camPos = V3();
-    cam.getWorldPosition(camPos);
-    const dist = camPos.distanceTo(world);
-    const r = (C.ball.radius / Math.max(0.15, dist)) * (window.innerHeight / (2 * Math.tan(
-      (cam.fov || 60) * Math.PI / 360)));
-    return { x, y, r, behind: v.z > 1 };
-  }
-
-  /* ============================================================== DRAW MODE
-     "picker": the wall draws numbers for you. Tap, the ball flies into the
-     drum painted on the mural, a numbered ball rolls out of the chute and
-     drops into the next empty slot. Six taps, six numbers, and the player
-     walks away with something they keep — which is what the rally never gave
-     them. Positions come from the campaign file so they match the artwork. */
+  /* ------------------------------------------------------------- the round
+     A ball rolls out of the drum and down the rail painted on the wall. Catch
+     it before it reaches the chute and its number drops into a port; let it
+     go and the number is lost. Three losses end the round. */
+  const G = { phase: 'idle', tracked: false, last: 0 };
   const DRAW = { picked: [], ball: null, discs: [], lost: 0, speed: 1, paused: false };
 
   function rand(max) {
@@ -457,125 +416,30 @@
   }
 
   function drawNumber() {
-    const max = C.draw.maxNumber;
+    const max = C.draw.maxNumber || 52;
     let n;
     do { n = rand(max); } while (DRAW.picked.includes(n));
     return n;
   }
 
-  // Numbered disc, drawn to a canvas so there are no font files to ship.
-  function makeDisc(n) {
-    const S = 256, cv = document.createElement('canvas');
-    cv.width = cv.height = S;
-    const g = cv.getContext('2d');
-    g.clearRect(0, 0, S, S);
-    g.fillStyle = C.draw.discFill || '#f7f2e8';
-    g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 8, 0, 6.284); g.fill();
-    // The ring keeps the colour of the ball it came from, so a filled port
-    // still reads as the orange one, the blue one — the band survives the catch.
-    const bi = bandOf(n);
-    g.lineWidth = 12;
-    g.strokeStyle = (bi >= 0 && BANDS[bi][3]) || C.draw.discRing || '#e8b230';
-    g.stroke();
-    const grad = g.createRadialGradient(S * 0.36, S * 0.3, 8, S * 0.5, S * 0.5, S * 0.6);
-    grad.addColorStop(0, 'rgba(255,255,255,.85)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = grad; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 14, 0, 6.284); g.fill();
-    g.fillStyle = C.draw.discInk || '#26143a';
-    g.font = 'bold ' + (n > 9 ? 112 : 128) + 'px -apple-system, Helvetica, Arial, sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(String(n), S / 2, S / 2 + 6);
-    const THREE = AFRAME.THREE;
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
-    const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(C.draw.discRadius, 40),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
-    );
-    targetEl.object3D.add(mesh);
-    return mesh;
+  function buildMisses() {
+    const max = C.draw.maxMisses || 3, box = $('misses');
+    box.innerHTML = '';
+    for (let i = 0; i < max; i++) box.appendChild(document.createElement('i'));
+  }
+  function paintMisses() {
+    const dots = $('misses').children;
+    for (let i = 0; i < dots.length; i++)
+      dots[i].className = i < DRAW.lost ? 'spent' : '';
   }
 
-  function say(text) {
-    const el = $('cheer');
-    el.textContent = text; el.classList.add('on');
-    clearTimeout(say._t); say._t = setTimeout(() => el.classList.remove('on'), 1300);
-  }
-
-  /* ---------------------------------------------------------- ramp round
-     A ball rolls down the slide painted on the wall and falls off the end.
-     Catch it before it drops and its number is yours; let it go and the
-     number is lost and you wait for the next one. Each ball rolls a little
-     faster, so the pressure builds across the six. */
-  /* ------------------------------------------------------------ ball atlas
-     One image holding every band's map, stacked top to bottom, sliced once
-     here. Cheaper to upload and to serve than eight files, and it means a
-     ball never changes colour a frame late waiting on a fetch.
-
-     If the sheet fails to load the ball keeps the flat band colour it was
-     built with, so the round still plays — just without the printed window. */
-  const ATLAS = [];
-  function loadAtlas(src) {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const THREE = AFRAME.THREE, rows = BANDS.length, h = img.height / rows;
-      for (let i = 0; i < rows; i++) {
-        const cv = document.createElement('canvas');
-        cv.width = img.width; cv.height = h;
-        cv.getContext('2d').drawImage(img, 0, i * h, img.width, h, 0, 0, img.width, h);
-        const t = new THREE.CanvasTexture(cv);
-        t.colorSpace = THREE.SRGBColorSpace || t.colorSpace;
-        t.anisotropy = 4;
-        ATLAS[i] = t;
-      }
-      if (DRAW.ball) setBallTexture(DRAW.ball.n);
-    };
-    img.onerror = () => track('atlas_failed', { campaign: C.id });
-    img.src = src + '?v=' + BUILD;
-  }
-
-  /* Which band a number belongs to. Bands are [low, high, texture, hex] and
-     the last one is open-ended, so extending the game's range never leaves a
-     number without a colour. */
-  function bandOf(n) {
-    if (!BANDS) return -1;
-    for (let i = 0; i < BANDS.length; i++) if (n >= BANDS[i][0] && n <= BANDS[i][1]) return i;
-    return BANDS.length - 1;
-  }
-
-  /* Banded: the number decides the colour, as it does in the real draw.
-     Unbanded: any colour but the one just used, so a fresh ball reads as
-     fresh rather than as the previous one having never left. */
-  function setBallTexture(n) {
-    let i;
-    if (BANDS) {
-      i = bandOf(n);
-    } else {
-      if (TEX.length < 2) return;
-      i = lastTex;
-      while (i === lastTex) i = Math.floor(Math.random() * TEX.length);
-    }
-    lastTex = i;
-    if (ATLAS[i]) {
-      const m = ballEl.getObject3D('mesh');
-      if (m) { m.material.map = ATLAS[i]; m.material.color.setHex(0xffffff); m.material.needsUpdate = true; }
-      return;
-    }
-    if (BANDS && C.ball.atlas) {          // sheet not in yet — hold the band colour
-      const m = ballEl.getObject3D('mesh');
-      if (m && BANDS[i][3]) { m.material.color.set(BANDS[i][3]); m.material.needsUpdate = true; }
-      return;
-    }
-    if (TEX.length) ballEl.setAttribute('material', 'src', '#balltex' + i);
-  }
-
-  function spawnBall(delay) {
-    const n = drawNumber();
-    DRAW.ball = { stage: 'wait', t: 0, wait: delay == null ? 0.5 : delay,
-                  n: n, vy: 0, x: 0, y: 0 };
-    ballEl.object3D.visible = false;
-    setBallTexture(n);
+  let sayTimer = 0;
+  function say(text, ms) {
+    const el = $('say');
+    el.textContent = text;
+    el.classList.add('on');
+    clearTimeout(sayTimer);
+    sayTimer = setTimeout(() => el.classList.remove('on'), ms || 900);
   }
 
   /* The rail is a quadratic bezier when the campaign supplies a control point,
@@ -589,6 +453,111 @@
              y: m * m * a[1] + 2 * m * t * c[1] + t * t * b[1] };
   }
 
+  function spawnBall(delay) {
+    const n = drawNumber();
+    DRAW.ball = { stage: 'wait', wait: delay == null ? 0.5 : delay, t: 0, n: n,
+                  x: 0, y: 0, vy: 0 };
+    ballEl.object3D.visible = false;
+    shadowEl.object3D.visible = false;
+    setBallTexture(n);
+  }
+
+  function placeBall(x, y, z) {
+    ballEl.object3D.position.set(x, y, z);
+    ballEl.object3D.visible = true;
+    // The shadow only reads while the ball is over the artwork; off the edge
+    // it becomes a grey disc floating in mid air.
+    const over = y > (C.draw.missY || -0.26) + 0.02;
+    shadowEl.object3D.visible = over;
+    if (over) shadowEl.object3D.position.set(x, y - 0.035, 0.003);
+  }
+
+  function makeDisc(n) {
+    const S = 256, cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, S, S);
+    g.fillStyle = C.draw.discFill || '#f8f4e8';
+    g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 8, 0, 6.284); g.fill();
+    // The ring keeps the colour of the ball it came from, so a filled port
+    // still reads as the orange one, the blue one — the band survives the catch.
+    const bi = bandOf(n);
+    g.lineWidth = 13;
+    g.strokeStyle = (bi >= 0 && BANDS[bi][3]) || C.palette.accent || '#ecbe48';
+    g.stroke();
+    const grad = g.createRadialGradient(S * 0.36, S * 0.3, 8, S * 0.5, S * 0.5, S * 0.6);
+    grad.addColorStop(0, 'rgba(255,255,255,.85)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.beginPath(); g.arc(S / 2, S / 2, S / 2 - 14, 0, 6.284); g.fill();
+    g.fillStyle = C.draw.discInk || '#14110f';
+    g.font = 'bold ' + (n > 9 ? 112 : 128) + 'px -apple-system, Helvetica, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(n), S / 2, S / 2 + 6);
+
+    const THREE = AFRAME.THREE;
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace || tex.colorSpace;
+    const mesh = new THREE.Mesh(
+      new THREE.CircleGeometry(C.draw.discRadius || 0.04, 40),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+    );
+    targetEl.object3D.add(mesh);
+    return mesh;
+  }
+
+  /* Balls tumbling in the painted drum, in the machine colours, so the one
+     that rolls out looks like it came from there rather than from nowhere. */
+  function buildAgitator() {
+    if (AGIT.length || !C.draw.drum) return;
+    const THREE = AFRAME.THREE, cfg = C.draw;
+    const pal = (BANDS && BANDS.map((b) => b[3]).filter(Boolean)) ||
+                ['#d02a28', '#1c60ba', '#1a8e4e', '#f6c216', '#7c3e9e', '#e8701a'];
+    const n = cfg.drumBalls || 6;
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(
+        new THREE.SphereGeometry(cfg.drumBallRadius || 0.018, 18, 14),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(pal[i % pal.length]),
+                                         roughness: 0.32, metalness: 0.05 })
+      );
+      m.userData.a = (i / n) * Math.PI * 2;
+      m.userData.r = (cfg.drumRadius || 0.06) * (0.3 + 0.6 * ((i * 7 % 5) / 5));
+      m.userData.sp = 0.7 + (i % 3) * 0.35;
+      targetEl.object3D.add(m);
+      AGIT.push(m);
+    }
+  }
+
+  function stepAgitator(dt) {
+    if (!AGIT.length) return;
+    const c = C.draw.drum;
+    for (const m of AGIT) {
+      const u = m.userData;
+      u.a += dt * u.sp * 1.1;
+      m.position.set(c[0] + Math.cos(u.a) * u.r,
+                     c[1] + Math.sin(u.a * 1.3) * u.r * 0.8,
+                     0.03 + Math.sin(u.a * 0.7) * 0.012);
+      m.rotation.y = u.a * 2;
+    }
+  }
+
+  function startRound() {
+    DRAW.picked = []; DRAW.lost = 0; DRAW.speed = 1; DRAW.paused = false;
+    DRAW.discs.forEach((m) => targetEl.object3D.remove(m));
+    DRAW.discs = [];
+    $('score').textContent = '0';
+    paintMisses();
+    G.phase = 'draw';
+    $('hint').textContent = '';
+    buildAgitator();
+    spawnBall(0.7);
+    track('round_start', { campaign: C.id });
+  }
+
+  function resetRound() {
+    if (G.tracked) startRound();
+    else { G.phase = 'scan'; $('hint').textContent = C.copy.scanning || 'Point at the wall'; }
+  }
+
   function stepDraw(dt) {
     const b = DRAW.ball, cfg = C.draw;
     if (!b) return;
@@ -597,451 +566,225 @@
       b.wait -= dt;
       if (b.wait <= 0) {
         b.stage = 'roll'; b.t = 0;
-        ballEl.object3D.visible = true;
-        say(C.copy.incoming || 'HERE IT COMES');
+        say(C.copy.incoming || 'HERE IT COMES', 700);
       }
       return;
     }
 
     if (b.stage === 'roll') {
-      // gentle acceleration down the slide, and faster with every ball drawn
-      const base = cfg.rollSecs / DRAW.speed;
-      b.t += (dt / base) * (0.75 + b.t * 0.5);
-      const p = rampPoint(Math.min(1, b.t));
-      b.x = p.x; b.y = p.y;
-      G.pos.x = p.x; G.pos.y = p.y; G.pos.z = cfg.rollZ;
-      // Spin mostly about Y. The number windows sit on the ball's equator, so
-      // a Y-dominant spin parades them across the front once a quarter turn,
-      // where an even tumble hides them edge-on most of the way down.
-      G.spin.y += dt * 6.5; G.spin.x -= dt * 1.1;
-      applyBall();
+      // gentle acceleration down the rail, and faster with every ball drawn
+      const secs = (cfg.rollSecs || 2.5) / DRAW.speed;
+      b.t += dt / secs;
+      const pt = rampPoint(Math.min(1, b.t));
+      b.x = pt.x; b.y = pt.y;
+      placeBall(b.x, b.y, cfg.rollZ || 0.022);
+      ballEl.object3D.rotation.y += dt * 6.5;
+      ballEl.object3D.rotation.x -= dt * 1.1;
       if (b.t >= 1) { b.stage = 'fall'; b.vy = -0.05; }
       return;
     }
 
     if (b.stage === 'fall') {
-      b.vy -= cfg.fallGravity * dt;
+      b.vy -= (cfg.fallGravity || 0.8) * dt;
       b.y += b.vy * dt;
-      b.x += cfg.fallDrift * dt;
-      G.pos.x = b.x; G.pos.y = b.y; G.pos.z = cfg.rollZ;
-      G.spin.x -= dt * 9;
-      applyBall();
-      if (b.y < cfg.missY) {
+      b.x += (cfg.fallDrift || 0.06) * dt;
+      placeBall(b.x, b.y, cfg.rollZ || 0.022);
+      ballEl.object3D.rotation.y += dt * 5;
+      if (b.y <= (cfg.missY || -0.26)) {
         DRAW.lost += 1;
-        pop(C.copy.miss || 'MISSED!');
-        renderMisses();
+        paintMisses();
+        say(C.copy.miss || 'MISSED!', 900);
+        $('hint').textContent = C.copy.missHint || 'that number is gone';
+        setTimeout(() => { if (G.phase === 'draw') $('hint').textContent = ''; }, 1100);
         track('number_missed', { campaign: C.id, lost: DRAW.lost });
         ballEl.object3D.visible = false;
-        const max = cfg.maxMisses || 3;
-        if (DRAW.lost >= max) {
-          say(C.copy.outOfBalls || 'OUT OF BALLS');
-          DRAW.ball = null;
-          setTimeout(finishDraw, 900);
-          return;
-        }
-        say(C.copy.missHint || 'that number is gone');
-        spawnBall(cfg.gapSecs);
+        shadowEl.object3D.visible = false;
+        DRAW.ball = null;
+        if (DRAW.lost >= (cfg.maxMisses || 3)) return finishDraw();
+        return spawnBall(cfg.gapSecs || 0.9);
       }
       return;
     }
 
     if (b.stage === 'toSlot') {
-      b.t += dt / cfg.toSlotSecs;
-      const e = Math.min(1, b.t), ee = e * e * (3 - 2 * e);
-      b.mesh.position.set(
-        b.fromX + (b.slot[0] - b.fromX) * ee,
-        b.fromY + (b.slot[1] - b.fromY) * ee - Math.sin(Math.PI * ee) * 0.05,
-        0.06 - ee * 0.05
-      );
-      const sc = 1.3 - 0.3 * ee;
-      b.mesh.scale.set(sc, sc, sc);
-      if (e >= 1) {
-        DRAW.discs.push(b.mesh);
-        if (DRAW.picked.length >= cfg.count) { DRAW.ball = null; return finishDraw(); }
-        DRAW.speed = Math.min(cfg.maxSpeed || 2.2, DRAW.speed + (cfg.speedStep || 0.16));
-        spawnBall(cfg.gapSecs);
+      b.t += dt / (cfg.toSlotSecs || 0.6);
+      const k = Math.min(1, b.t), e = 1 - Math.pow(1 - k, 3);
+      const m = b.mesh;
+      if (m) {
+        m.position.set(b.from[0] + (b.slot[0] - b.from[0]) * e,
+                       b.from[1] + (b.slot[1] - b.from[1]) * e, 0.012);
+        const s = 1.45 - 0.45 * e;
+        m.scale.set(s, s, s);
+      }
+      if (k >= 1) {
+        if (m) { m.position.set(b.slot[0], b.slot[1], 0.012); m.scale.set(1, 1, 1); DRAW.discs.push(m); }
+        DRAW.ball = null;
+        if (DRAW.picked.length >= (cfg.count || 6)) return finishDraw();
+        return spawnBall(cfg.gapSecs || 0.9);
       }
     }
   }
 
-  function renderMisses() {
-    const max = (C.draw.maxMisses || 3);
-    const el = $('misses');
-    el.classList.add('on');
-    el.innerHTML = '';
-    for (let i = 0; i < max; i++) {
-      const dot = document.createElement('i');
-      if (i < DRAW.lost) dot.className = 'spent';
-      el.appendChild(dot);
-    }
-  }
-
-  function catchBall() {
-    const b = DRAW.ball, cfg = C.draw;
-    if (!b || (b.stage !== 'roll' && b.stage !== 'fall')) return false;
-    const s = ballScreen();
-    if (s.behind) return false;
-    const dx = lastTap.x - s.x, dy = lastTap.y - s.y;
-    const forgive = Math.max(52, s.r * (cfg.tapForgiveness || 1.8));
-    if (dx * dx + dy * dy > forgive * forgive) return false;
-
+  function catchBall(b) {
+    const cfg = C.draw;
     DRAW.picked.push(b.n);
-    $('score').textContent = DRAW.picked.length;
-    pop(String(b.n));
-    say(C.copy.caught || 'CAUGHT IT');
+    $('score').textContent = String(DRAW.picked.length);
+    say(C.copy.caught || 'CAUGHT IT', 700);
     track('number_caught', { campaign: C.id, n: b.n, index: DRAW.picked.length });
-    glowEl.setAttribute('material', 'opacity', 0.24);
-    setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 240);
+    DRAW.speed = Math.min(cfg.maxSpeed || 2.2, DRAW.speed + (cfg.speedStep || 0.16));
+
     ballEl.object3D.visible = false;
+    shadowEl.object3D.visible = false;
     b.mesh = makeDisc(b.n);
-    b.mesh.position.set(G.pos.x, G.pos.y, 0.06);
-    b.fromX = G.pos.x; b.fromY = G.pos.y;
-    b.slot = cfg.slots[DRAW.picked.length - 1];
-    b.stage = 'toSlot'; b.t = 0;
-    return true;
+    b.from = [b.x, b.y];
+    b.slot = (cfg.slots && cfg.slots[DRAW.picked.length - 1]) || [0, -0.145];
+    b.mesh.position.set(b.x, b.y, 0.012);
+    b.stage = 'toSlot';
+    b.t = 0;
   }
 
   function finishDraw() {
     G.phase = 'over';
     ballEl.object3D.visible = false;
-    $('score').classList.remove('on');
-    $('best').classList.remove('on');
+    shadowEl.object3D.visible = false;
+    $('hud').classList.remove('on');
     const sorted = DRAW.picked.slice().sort((a, b) => a - b);
-    $('overTitle').textContent = C.copy.overTitle || 'Your numbers';
-    $('overLbl').textContent = C.copy.overLabel || 'FOR THE NEXT DRAW';
-    $('share').textContent = C.copy.shareButton || 'Share your numbers';
-    $('finalScore').textContent = sorted.length ? sorted.join('  ') : '—';
-    $('misses').classList.remove('on');
-    $('finalScore').style.fontSize = 'clamp(28px, 9vw, 46px)';
-    $('newbest').style.visibility = 'hidden';
-    const ranOut = DRAW.lost >= (C.draw.maxMisses || 3) && DRAW.picked.length < C.draw.count;
-    const missNote = ranOut
-      ? ` You dropped ${DRAW.lost} and ran out before the set was full.`
-      : DRAW.lost
-        ? ` You let ${DRAW.lost} ball${DRAW.lost > 1 ? 's' : ''} drop.`
-        : ' Not a single one dropped.';
-    $('overBody').textContent = ((C.reward && C.reward.body) || '') + missNote;
-    const cta = $('overCta');
-    if (C.reward && C.reward.url) {
-      cta.textContent = C.reward.cta || 'Continue';
-      cta.href = C.reward.url;
-      cta.style.display = '';
-    } else { cta.style.display = 'none'; }
+    const box = $('nums');
+    box.innerHTML = '';
+    sorted.forEach((n) => {
+      const b = document.createElement('b');
+      b.textContent = n;
+      const bi = bandOf(n);
+      if (bi >= 0 && BANDS[bi][3]) b.style.borderColor = BANDS[bi][3];
+      box.appendChild(b);
+    });
+    const ranOut = DRAW.lost >= (C.draw.maxMisses || 3) && DRAW.picked.length < (C.draw.count || 6);
+    $('overTitle').textContent = ranOut ? (C.copy.outOfBalls || 'Out of balls')
+                                        : (C.copy.overTitle || 'Your six numbers');
+    $('overBody').textContent = (C.reward && C.reward.body ? C.reward.body : '') +
+      (ranOut ? ' You dropped ' + DRAW.lost + ' and ran out before the set was full.'
+              : DRAW.lost ? ' You let ' + DRAW.lost + ' ball' + (DRAW.lost > 1 ? 's' : '') + ' drop.' : '');
     $('over').classList.remove('hide');
     track('draw_complete', { campaign: C.id, numbers: sorted, lost: DRAW.lost });
   }
 
-  function resetDraw() {
-    DRAW.discs.forEach((m) => targetEl.object3D.remove(m));
-    DRAW.discs = [];
-    DRAW.picked = [];
-    DRAW.ball = null;
-    DRAW.lost = 0;
-    DRAW.speed = 1;
-    DRAW.paused = false;
-    $('finalScore').style.fontSize = '';
-    $('score').textContent = '0';
-    $('misses').classList.remove('on');
+  function share() {
+    const sorted = DRAW.picked.slice().sort((a, b) => a - b).join(', ');
+    const text = (C.copy.shareText || 'The wall picked my numbers:') + ' ' + sorted +
+                 ' — ' + (C.brand || 'Firebird Africa') + '.';
+    if (navigator.share) navigator.share({ text: text }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(text)
+      .then(() => say('Copied', 1200)).catch(() => {});
   }
 
-  const lastTap = { x: 0, y: 0 };
+  /* ------------------------------------------------------------ hit testing
+     Project the ball to screen coordinates and compare with the tap, rather
+     than raycasting. Outdoors, at arm's length, with the phone moving, a
+     forgiving circle around where the ball appears is far kinder than a ray
+     that has to strike a small sphere exactly.
 
-  /* Agitator balls inside the drum painted on the wall. They tumble whenever
-     the wall is in view, so the mural looks alive before anyone taps, and the
-     ball that rolls out has somewhere to have come from. */
-  const AGIT = [];
-  function buildAgitator() {
-    const cfg = C.draw, THREE = AFRAME.THREE;
-    if (!cfg.drum || AGIT.length) return;
-    const n = cfg.drumBalls || 6;
-    for (let i = 0; i < n; i++) {
-      // Tumbling balls in the machine colours, so the one that rolls out is
-      // recognisably one of these rather than arriving from nowhere.
-      const pal = cfg.drumColors || (BANDS && BANDS.map((b) => b[3]).filter(Boolean))
-                  || ['#d02a28', '#1c60ba', '#1a8e4e', '#f6c216', '#7c3e9e', '#f2eee6'];
-      const m = new THREE.Mesh(
-        new THREE.SphereGeometry(cfg.drumBallRadius || 0.022, 18, 14),
-        new THREE.MeshStandardMaterial({ color: new THREE.Color(pal[i % pal.length]),
-                                         roughness: 0.32, metalness: 0.05 })
-      );
-      m.userData.a = (i / n) * Math.PI * 2;
-      m.userData.r = (cfg.drumRadius || 0.075) * (0.35 + 0.6 * ((i * 7 % 5) / 5));
-      m.userData.sp = 0.7 + (i % 3) * 0.35;
-      targetEl.object3D.add(m);
-      AGIT.push(m);
-    }
-  }
-  function stepAgitator(now) {
-    if (!AGIT.length) return;
-    const c = C.draw.drum;
-    for (const m of AGIT) {
-      const u = m.userData;
-      u.a += 0.016 * u.sp;
-      m.position.set(c[0] + Math.cos(u.a) * u.r,
-                     c[1] + Math.sin(u.a * 1.3) * u.r * 0.8,
-                     0.03 + Math.sin(u.a * 0.7) * 0.012);
-      m.rotation.y = u.a * 2;
-    }
+     The apparent radius is measured by projecting a second point one ball-
+     radius to the camera's right and taking the pixel gap. Deriving it from
+     the local radius and the world distance instead gives zero, because MindAR
+     scales the target's world space — and a zero-radius tap target means
+     nothing is ever catchable. */
+  function ballScreen() {
+    if (!ballEl || !ballEl.object3D.visible || !sceneEl || !sceneEl.camera) return null;
+    const THREE = AFRAME.THREE;
+    const cam = sceneEl.camera;
+
+    const world = new THREE.Vector3();
+    ballEl.object3D.getWorldPosition(world);
+    const v = world.clone().project(cam);
+    if (v.z > 1) return { behind: true };
+
+    const scale = new THREE.Vector3();
+    ballEl.object3D.getWorldScale(scale);
+    const worldR = ((C.ball && C.ball.radius) || 0.035) *
+                   Math.max(scale.x, scale.y, scale.z);
+
+    const right = new THREE.Vector3();
+    cam.matrixWorld.extractBasis(right, new THREE.Vector3(), new THREE.Vector3());
+    const edge = world.clone().addScaledVector(right, worldR).project(cam);
+
+    const W = window.innerWidth, H = window.innerHeight;
+    const r = Math.abs(edge.x - v.x) / 2 * W;
+    return {
+      behind: false,
+      x: (v.x + 1) / 2 * W,
+      y: (-v.y + 1) / 2 * H,
+      r: r,
+    };
   }
 
   function onTap(ev) {
-    if (ev.target.closest && ev.target.closest('.card')) return;
-
-    if (C.mode === 'picker') {
-      if (!G.tracked) return;
-      const t = (ev.touches && ev.touches[0]) || ev;
-      lastTap.x = t.clientX; lastTap.y = t.clientY;
-      if (G.phase === 'ready' || G.phase === 'idle') {
-        G.phase = 'draw';
-        $('score').classList.add('on');
-        $('tapplay').classList.remove('on');
-        DRAW.speed = 1;
-        renderMisses();
-        spawnBall(0.6);
-        return;
-      }
-      if (G.phase === 'draw') catchBall();
-      return;
-    }
-
-    if (G.phase === 'ready') return startRound();
-    if (G.phase !== 'play') return;
-
-    const t = (ev.touches && ev.touches[0]) || ev;
+    if (G.phase === 'ready') { startRound(); return; }
+    if (G.phase !== 'draw' || DRAW.paused) return;
+    const b = DRAW.ball;
+    if (!b || (b.stage !== 'roll' && b.stage !== 'fall')) return;
     const s = ballScreen();
-    if (s.behind) return;
-    const dx = t.clientX - s.x, dy = t.clientY - s.y;
-    const forgiveness = Math.max(46, s.r * (C.play.tapForgiveness || 1.5));
-    if (dx * dx + dy * dy > forgiveness * forgiveness) return;   // swing and a miss
-
-    const ph = C.play;
-    G.vel.y = ph.hitImpulse;
-    // where you hit it decides where it goes — off-centre taps send it sideways
-    G.vel.x = Math.max(-ph.maxSide, Math.min(ph.maxSide, -dx / forgiveness * ph.sideGain + G.vel.x * 0.2));
-    G.vel.z = Math.max(-0.25, Math.min(ph.maxDepth, G.vel.z * 0.3 + (Math.random() - 0.35) * ph.depthGain));
-    G.spin.y += 0.9; G.spin.x -= 0.6;
-
-    setScore(G.score + 1);
-    pop(C.copy.hit || 'HIT!');
-    track('rally_score', { campaign: C.id, score: G.score });
-    popProps();
+    if (!s || s.behind) return;
+    const dx = ev.clientX - s.x, dy = ev.clientY - s.y;
+    // A thumb is about 40px across. Never let the catchable area fall below
+    // that, however small or far away the ball happens to render.
+    const reach = Math.max(44, s.r * (C.draw.tapForgiveness || 1.9));
+    if (dx * dx + dy * dy <= reach * reach) catchBall(b);
   }
 
-  function popProps() {
-    document.querySelectorAll('.prop').forEach((p, i) => {
-      const o = p.object3D;
-      if (o.userData.baseZ === undefined) o.userData.baseZ = o.position.z;
-      o.position.z = o.userData.baseZ + 0.06;
-      setTimeout(() => { o.position.z = o.userData.baseZ; }, 200 + i * 40);
-    });
-  }
-
-  function startRound() {
-    G.phase = 'count';
-    $('tapplay').classList.remove('on');
-    setScore(0);
-    resetBall();
-    ballEl.object3D.visible = false;
-    const steps = ['3', '2', '1'];
-    let i = 0;
-    const cd = $('countdown');
-    const tick = () => {
-      if (!G.tracked) { G.phase = 'ready'; cd.classList.remove('go'); return; }
-      if (i >= steps.length) {
-        cd.classList.remove('go');
-        cd.textContent = '';
-        G.phase = 'play';
-        ballEl.object3D.visible = true;
-        $('score').classList.add('on');
-        $('best').classList.add('on');
-        $('best').textContent = 'BEST ' + G.best;
-        cheer(C.copy.go || 'GO!');
-        return;
-      }
-      cd.textContent = steps[i++];
-      cd.classList.remove('go'); void cd.offsetWidth; cd.classList.add('go');
-      setTimeout(tick, 750);
-    };
-    tick();
-  }
-
-  function endRound() {
-    G.phase = 'over';
-    ballEl.object3D.visible = false;
-    $('score').classList.remove('on');
-    $('best').classList.remove('on');
-    const isBest = G.score > G.best;
-    if (isBest) {
-      G.best = G.score;
-      try { localStorage.setItem('fb_best_' + campaignId, String(G.best)); } catch (e) {}
-    }
-    $('finalScore').textContent = G.score;
-    $('newbest').style.visibility = isBest && G.score > 0 ? 'visible' : 'hidden';
-    const r = C.reward || {};
-    $('overBody').textContent = G.score >= (C.play.goal || 8)
-      ? (r.body || '') : (C.copy.tryAgain || 'Keep it up — the mural is waiting.');
-    const cta = $('overCta');
-    if (G.score >= (C.play.goal || 8) && r.url) {
-      cta.textContent = r.cta || 'Continue';
-      cta.href = r.url;
-      cta.style.display = '';
-    } else {
-      cta.style.display = 'none';
-    }
-    $('over').classList.remove('hide');
-    track('round_end', { campaign: C.id, score: G.score, best: G.best });
-    if (G.score >= (C.play.goal || 8)) track('goal_reached', { campaign: C.id, score: G.score });
-  }
-
-  $('again').addEventListener('click', () => {
-    $('over').classList.add('hide');
-    if (C.mode === 'picker') {
-      resetDraw();
-      G.phase = 'ready';
-      ballEl.object3D.visible = false;
-      $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Start';
-      $('tapplay').classList.add('on');
-      return;
-    }
-    if (G.tracked) startRound(); else { G.phase = 'ready'; $('tapplay').classList.add('on'); }
-  });
-
-  $('share').addEventListener('click', async () => {
-    const text = C.mode === 'picker'
-      ? `${C.copy.shareText || 'The wall picked my numbers:'} ${DRAW.picked.slice().sort((a,b)=>a-b).join(', ')} — ${C.brand}.`
-      : `${C.copy.shareText || 'I scored'} ${G.score} on the ${C.brand} AR mural.`;
-    track('share_click', { campaign: C.id, score: G.score });
-    try {
-      if (navigator.share) await navigator.share({ title: C.brand, text, url: location.href });
-      else { await navigator.clipboard.writeText(text + ' ' + location.href); $('share').textContent = 'Copied!'; }
-    } catch (e) { /* user dismissed */ }
-  });
-
-  $('overCta').addEventListener('click', () => track('cta_click', { campaign: C.id }));
-
-  /* ---------------------------------------------------------------- loop */
-  function loop(now) {
-    requestAnimationFrame(loop);
-    const dt = Math.min(0.04, (now - (G.last || now)) / 1000);
-    G.last = now;
-
-    if (C.mode === 'picker') {
-      // Only advance the draw while the wall is in view. Otherwise a ball
-      // keeps rolling — and can be "missed" — while the phone is pointed at
-      // the pavement, which is not the player's fault.
-      if (G.tracked) stepAgitator(now);
-      if (G.tracked && G.phase === 'draw' && !DRAW.paused) stepDraw(dt);
-    } else if (G.phase === 'play') {
-      const ph = C.play;
-      G.vel.y -= ph.gravity * dt;
-      G.pos.x += G.vel.x * dt;
-      G.pos.y += G.vel.y * dt;
-      G.pos.z += G.vel.z * dt;
-
-      // keep it roughly in front of the wall
-      if (G.pos.x < -ph.boundX) { G.pos.x = -ph.boundX; G.vel.x *= -0.7; }
-      if (G.pos.x > ph.boundX) { G.pos.x = ph.boundX; G.vel.x *= -0.7; }
-      if (G.pos.z < ph.minZ) { G.pos.z = ph.minZ; G.vel.z *= -0.6; }
-      if (G.pos.z > ph.maxZ) { G.pos.z = ph.maxZ; G.vel.z *= -0.6; }
-
-      G.spin.x += G.vel.y * dt * 2.5;
-      G.spin.y += G.vel.x * dt * 3.5;
-      applyBall();
-
-      if (G.pos.y < ph.floorY) { pop(C.copy.miss || 'MISSED!'); endRound(); }
-    }
-
-    const b = now / 620;
-    document.querySelectorAll('.prop').forEach((p, i) => {
-      const o = p.object3D;
-      if (o.userData.baseY === undefined) o.userData.baseY = o.position.y;
-      o.position.y = o.userData.baseY + Math.sin(b + i * 1.3) * 0.012;
-      o.rotation.y = Math.sin(b * 0.6 + i) * 0.4;
-    });
-  }
-
-  /* -------------------------------------------------------------- tracking */
+  /* ------------------------------------------------------- tracking changes */
   function onFound() {
     G.tracked = true;
-    $('scan').classList.remove('on');
-    glowEl.setAttribute('material', 'opacity', 0.3);
-    setTimeout(() => glowEl.setAttribute('material', 'opacity', 0), 500);
-    popProps();
-    track('target_found', { campaign: C.id });
-    if (C.mode === 'picker' && DRAW.paused) {
+    if (G.phase === 'over') return;
+    if (G.phase === 'draw' && DRAW.paused) {
       DRAW.paused = false;
-      say(C.copy.resumed || 'BACK ON');
-      spawnBall(C.draw.gapSecs || 0.9);
+      say(C.copy.resumed || 'BACK ON', 700);
       return;
     }
-    if (G.phase === 'idle' || G.phase === 'lost') {
-      G.phase = 'ready';
-      if (C.mode === 'picker') {
-        buildAgitator();
-        ballEl.object3D.visible = false;
-        $('tapplay').textContent = C.copy.tapToPlay || 'Tap To Start';
-      }
-      $('tapplay').classList.add('on');
-    }
+    if (G.phase === 'draw') return;
+    G.phase = 'ready';
+    $('hint').textContent = C.copy.tapToPlay || 'Tap to start';
   }
 
   function onLost() {
     G.tracked = false;
-    track('target_lost', { campaign: C.id });
-    if (G.phase === 'over') return;
-    if (C.mode === 'picker' && G.phase === 'draw') {
+    if (G.phase === 'draw') {
       DRAW.paused = true;
-      // a number caught in the last instant would otherwise be stranded
-      // mid-flight; snap it home so the slot is filled when you look back
+      /* A number caught in the last instant would otherwise be stranded
+         mid-flight; snap it home so the port is filled when you look back. */
       const b = DRAW.ball;
       if (b && b.stage === 'toSlot' && b.mesh) {
-        b.mesh.position.set(b.slot[0], b.slot[1], 0.01);
+        b.mesh.position.set(b.slot[0], b.slot[1], 0.012);
         b.mesh.scale.set(1, 1, 1);
         DRAW.discs.push(b.mesh);
         DRAW.ball = null;
       }
-      if (ballEl) ballEl.object3D.visible = false;
-      $('scan').classList.add('on');
-      $('tapplay').classList.remove('on');
-      return;                       // keep phase, picked numbers and discs
+      ballEl.object3D.visible = false;
+      shadowEl.object3D.visible = false;
+      $('hint').textContent = C.copy.scanning || 'Point at the wall';
+    } else if (G.phase === 'ready') {
+      G.phase = 'scan';
+      $('hint').textContent = C.copy.scanning || 'Point at the wall';
     }
-    G.phase = 'lost';
-    $('scan').classList.add('on');
-    $('tapplay').classList.remove('on');
-    $('score').classList.remove('on');
-    $('best').classList.remove('on');
-    if (ballEl) ballEl.object3D.visible = false;
   }
 
-  window.addEventListener('pointerdown', onTap, { passive: true });
+  /* ------------------------------------------------------------------ clock */
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const dt = Math.min(0.05, (now - (G.last || now)) / 1000);
+    G.last = now;
+    if (!C || !targetEl) return;
+    if (G.tracked) stepAgitator(dt);
+    if (G.phase === 'draw' && !DRAW.paused) stepDraw(dt);
+  }
+  requestAnimationFrame(tick);
 
-  $('start').addEventListener('click', () => {
-    const begin = () => {
-      try {
-        scene.systems['mindar-image-system'].start();
-        $('gate').classList.add('hide');
-        $('scan').classList.add('on');
-        resetBall();
-        requestAnimationFrame(loop);
-        track('camera_start', { campaign: C.id });
-      } catch (err) {
-        warn.classList.add('on');
-        warn.textContent = 'Could not start the camera: ' + (err && err.message ? err.message : err);
-      }
-    };
-    if (scene && scene.hasLoaded) begin();
-    else if (scene) scene.addEventListener('loaded', begin, { once: true });
-  });
-
-  window.addEventListener('error', (e) => { if (e && e.message) $('dbg').textContent = String(e.message).slice(0, 120); });
-
-  // test hook
-  window.FIREBIRD_DEBUG = { G, DRAW, ballScreen: () => ballScreen(), startRound, config: () => C,
-    // which band the ball is actually wearing, and whether it came from the
-    // sheet or fell back to a flat colour — the audit checks the render, not
-    // the intent.
-    ballBand: () => ({ band: lastTex, fromAtlas: !!ATLAS[lastTex] }),
-    dressBall: (n) => setBallTexture(n) };
+  window.FIREBIRD_DEBUG = {
+    G: G, DRAW: DRAW, config: () => C, startRound: startRound,
+    ballScreen: () => ballScreen(),
+    ballBand: () => ({ band: lastBand, fromAtlas: !!ATLAS[lastBand] }),
+    dressBall: (n) => setBallTexture(n),
+    codeBuild: CODE_BUILD,
+  };
 })();
 </script>
 </body>

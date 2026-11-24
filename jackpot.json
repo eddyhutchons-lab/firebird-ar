@@ -8,7 +8,7 @@
     "ground": "#0c0b0d",
     "ink": "#f6f0e0",
     "accent": "#ecbe48",
-    "ball": "#e2342c",
+    "ball": "#eb6e18",
     "pop": "#ffd447"
   },
   "copy": {
@@ -34,6 +34,10 @@
     "rampStart": [
       -0.292,
       0.0685
+    ],
+    "rampCtrl": [
+      0.0319,
+      0.0081
     ],
     "rampEnd": [
       0.3559,
@@ -77,7 +81,6 @@
     ],
     "discRadius": 0.0398,
     "discFill": "#f8f4e8",
-    "discRing": "#ecbe48",
     "discInk": "#14110f",
     "drum": [
       -0.4283,
@@ -86,14 +89,11 @@
     "drumRadius": 0.062,
     "drumBalls": 8,
     "drumBallRadius": 0.018,
-    "maxMisses": 3,
-    "rampCtrl": [
-      0.0319,
-      0.0081
-    ]
+    "maxMisses": 3
   },
   "ball": {
     "radius": 0.035,
+    "atlas": "lottoballs.png",
     "bands": [
       [
         1,
@@ -143,26 +143,8 @@
         7,
         "#c69624"
       ]
-    ],
-    "atlas": "lottoballs.png"
+    ]
   },
-  "play": {
-    "startY": 0.34,
-    "startZ": 0.22,
-    "gravity": 0.62,
-    "hitImpulse": 0.62,
-    "maxSide": 0.3,
-    "sideGain": 0.34,
-    "maxDepth": 0.22,
-    "depthGain": 0.26,
-    "boundX": 0.62,
-    "minZ": 0.02,
-    "maxZ": 0.62,
-    "floorY": -0.62,
-    "tapForgiveness": 1.6,
-    "goal": 6
-  },
-  "props": [],
   "reward": {
     "body": "These are yours. Screenshot them, or tap below to see the next draw date. Playing the lottery is for over-18s only.",
     "cta": "See the next draw",
